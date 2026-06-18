@@ -1,0 +1,13 @@
+venv/
+.venv/
+
+.DS_Store
+Thumbs.db
+
+.ipynb_checkpoints/
+
+.vscode/*
+!.vscode/settings.json
+.vscode/.ipynb_checkpoints/
+
+.env
