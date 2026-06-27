@@ -7,12 +7,17 @@ python -m pip install --upgrade pip
 pip install streamlit
 ```
 
-2. **Run the streamlit appliation**
+2. **Activate the virtual environment**
 ```bash
-streamlit run app.py
+.\venv\Scripts\activate
 ```
 
-### How to setup retail_demand_forecasting.ipynb
+3. **Run the streamlit appliation**
+```bash
+streamlit run app/main.py
+```
+
+### How to setup eda_walmart.ipynb
 1. **Navigate to the root folder of the project**
 - Open your terminal/command prompt and ensure that you are in the folder **'AOL_AI'**
 
@@ -34,6 +39,5 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-
-Dataset: 'Superstore Dataset' (Sample - Superstore.csv)
-Link: https://www.kaggle.com/datasets/vivek468/superstore-dataset-final/data
+Dataset: 'Walmart Sales Prediction - (Best ML Algorithms)' (Walmart.csv)
+Link: https://www.kaggle.com/code/yasserh/walmart-sales-prediction-best-ml-algorithms/input

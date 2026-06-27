@@ -1,0 +1,550 @@
+This is the terminal output upon running the model training file on all 45 stores in the Walmart dataset.
+
+```bash
+python train_sarima.py
+```
+
+============================================================
+Store 1  |  model_type=single  d=0  m=52
+  Store 1 PCA — PC1 explains 58.75% of macro variance
+  WARNING: PC1 < 60% (58.75%). Consider holiday-only exog path.
+  Store 1 [single] — order=(3, 0, 2)  seasonal=(1, 0, 1, 52)  AIC=-330.90  BIC=-305.03
+  Store 1  — Ljung-Box p=0.0039 FAIL  Shapiro p=0.0089  resid_mean=0.00380  resid_std=0.06793
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 1: max_p 3 → 4
+  Store 1 [single] — order=(4, 0, 1)  seasonal=(1, 0, 0, 52)  AIC=-359.29  BIC=-339.16
+  Store 1 [[remediated]] — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10895  resid_std=1.25219
+  Store 1 CV — log-MAE 0.0587 ± 0.0100  (4 folds)
+  Store 1 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0248  SMAPE=0.0248  DirAcc=0.7500  beats_naive=True
+
+============================================================
+Store 2  |  model_type=single  d=0  m=52
+  Store 2 PCA — PC1 explains 64.01% of macro variance
+  Store 2 [single] — order=(1, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-316.54  BIC=-307.91
+  Store 2  — Ljung-Box p=0.0142 FAIL  Shapiro p=0.0006  resid_mean=-0.00045  resid_std=0.07103
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 2: max_p 3 → 4
+  Store 2 [single] — order=(1, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-316.54  BIC=-307.91
+  Store 2 [[remediated]] — Ljung-Box p=0.0142 FAIL  Shapiro p=0.0006  resid_mean=-0.00045  resid_std=0.07103
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 2: residual autocorrelation persists after remediation. Consider max_Q=1.
+  Store 2 CV — log-MAE 0.0426 ± 0.0127  (4 folds)
+  Store 2 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0318  SMAPE=0.0317  DirAcc=0.6667  beats_naive=True
+
+============================================================
+Store 3  |  model_type=single  d=1  m=52
+  Store 3 PCA — PC1 explains 56.38% of macro variance
+  WARNING: PC1 < 60% (56.38%). Consider holiday-only exog path.
+  Store 3 [single] — order=(0, 1, 2)  seasonal=(1, 0, 0, 52)  AIC=-322.84  BIC=-311.37
+  Store 3  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.09973  resid_std=1.14213
+  Store 3 CV — log-MAE 0.0898 ± 0.0704  (4 folds)
+  Store 3 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0272  SMAPE=0.0272  DirAcc=0.5833  beats_naive=True
+
+============================================================
+Store 4  |  model_type=single  d=0  m=52
+  Store 4 PCA — PC1 explains 69.50% of macro variance
+  Store 4 [single] — order=(1, 0, 2)  seasonal=(1, 0, 0, 52)  AIC=-357.29  BIC=-342.92
+  Store 4  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.11157  resid_std=1.27517
+  WARNING Store 4: wMAPE=0.0309 does not beat naive=0.0293. Apply BIC pass or ensemble fallback.
+  Store 4 CV — log-MAE 0.0591 ± 0.0032  (4 folds)
+  Store 4 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0309  SMAPE=0.0303  DirAcc=0.6667  beats_naive=False
+
+============================================================
+Store 5  |  model_type=single  d=0  m=52
+  Store 5 PCA — PC1 explains 61.24% of macro variance
+  Store 5 [single] — order=(1, 0, 1)  seasonal=(1, 0, 1, 52)  AIC=-308.13  BIC=-290.88
+  Store 5  — Ljung-Box p=0.0099 FAIL  Shapiro p=0.0000  resid_mean=0.00405  resid_std=0.07432
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 5: max_p 3 → 4
+  Store 5 [single] — order=(1, 0, 1)  seasonal=(1, 0, 1, 52)  AIC=-308.13  BIC=-290.88
+  Store 5 [[remediated]] — Ljung-Box p=0.0099 FAIL  Shapiro p=0.0000  resid_mean=0.00405  resid_std=0.07432
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 5: residual autocorrelation persists after remediation. Consider max_Q=1.
+  Store 5 CV — log-MAE 0.0483 ± 0.0129  (4 folds)
+  Store 5 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0340  SMAPE=0.0337  DirAcc=0.8333  beats_naive=True
+
+============================================================
+Store 6  |  model_type=single  d=1  m=52
+  Store 6 PCA — PC1 explains 63.14% of macro variance
+  Store 6 [single] — order=(3, 1, 0)  seasonal=(1, 0, 1, 52)  AIC=-329.30  BIC=-312.10
+  Store 6  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10853  resid_std=1.25324
+  Store 6 CV — log-MAE 0.0597 ± 0.0048  (4 folds)
+  Store 6 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0241  SMAPE=0.0240  DirAcc=0.5833  beats_naive=True
+
+============================================================
+Store 7  |  model_type=single  d=1  m=52
+  Store 7 PCA — PC1 explains 67.67% of macro variance
+  Store 7 [single] — order=(1, 1, 1)  seasonal=(1, 0, 1, 52)  AIC=-284.89  BIC=-270.55
+  Store 7  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10832  resid_std=1.14902
+  WARNING Store 7: wMAPE=0.0819 does not beat naive=0.0305. Apply BIC pass or ensemble fallback.
+  Store 7 CV — log-MAE 0.0454 ± 0.0073  (4 folds)
+  Store 7 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0819  SMAPE=0.0806  DirAcc=0.9167  beats_naive=False
+
+============================================================
+Store 8  |  model_type=single  d=0  m=52
+  Store 8 PCA — PC1 explains 59.11% of macro variance
+  WARNING: PC1 < 60% (59.11%). Consider holiday-only exog path.
+  Store 8 [single] — order=(2, 0, 0)  seasonal=(1, 0, 1, 52)  AIC=-366.79  BIC=-349.54
+  Store 8  — Ljung-Box p=0.0008 FAIL  Shapiro p=0.0000  resid_mean=0.00261  resid_std=0.06437
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 8: max_p 3 → 4
+  Store 8 [single] — order=(2, 0, 0)  seasonal=(1, 0, 1, 52)  AIC=-366.79  BIC=-349.54
+  Store 8 [[remediated]] — Ljung-Box p=0.0008 FAIL  Shapiro p=0.0000  resid_mean=0.00261  resid_std=0.06437
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 8: residual autocorrelation persists after remediation. Consider max_Q=1.
+  Store 8 CV — log-MAE 0.0351 ± 0.0048  (4 folds)
+  Store 8 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0360  SMAPE=0.0361  DirAcc=0.5000  beats_naive=True
+
+============================================================
+Store 9  |  model_type=single  d=0  m=52
+  Store 9 PCA — PC1 explains 61.46% of macro variance
+  Store 9 [single] — order=(1, 0, 0)  seasonal=(1, 0, 0, 52)  AIC=-323.80  BIC=-312.30
+  Store 9  — Ljung-Box p=0.0100 FAIL  Shapiro p=0.0000  resid_mean=0.00784  resid_std=0.07040
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 9: max_p 3 → 4
+  Store 9 [single] — order=(1, 0, 0)  seasonal=(1, 0, 0, 52)  AIC=-323.80  BIC=-312.30
+  Store 9 [[remediated]] — Ljung-Box p=0.0100 FAIL  Shapiro p=0.0000  resid_mean=0.00784  resid_std=0.07040
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 9: residual autocorrelation persists after remediation. Consider max_Q=1.
+  Store 9 CV — log-MAE 0.0743 ± 0.0182  (4 folds)
+  Store 9 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0392  SMAPE=0.0391  DirAcc=0.5833  beats_naive=True
+
+============================================================
+Store 10  |  model_type=single  d=1  m=52
+  Store 10 PCA — PC1 explains 69.70% of macro variance
+  Store 10 [single] — order=(1, 1, 2)  seasonal=(1, 0, 0, 52)  AIC=-350.30  BIC=-333.09
+  Store 10  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.11056  resid_std=1.27742
+  WARNING Store 10: wMAPE=0.0342 does not beat naive=0.0248. Apply BIC pass or ensemble fallback.
+  Store 10 CV — log-MAE 0.0878 ± 0.0630  (4 folds)
+  Store 10 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0342  SMAPE=0.0333  DirAcc=0.5833  beats_naive=False
+
+============================================================
+Store 11  |  model_type=single  d=0  m=52
+  Store 11 PCA — PC1 explains 56.20% of macro variance
+  WARNING: PC1 < 60% (56.20%). Consider holiday-only exog path.
+  Store 11 [single] — order=(1, 0, 2)  seasonal=(1, 0, 0, 52)  AIC=-317.66  BIC=-300.41
+  Store 11  — Ljung-Box p=0.0998 PASS  Shapiro p=0.0001  resid_mean=-0.00338  resid_std=0.07138
+  Store 11 CV — log-MAE 0.0660 ± 0.0140  (4 folds)
+  Store 11 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0381  SMAPE=0.0384  DirAcc=0.7500  beats_naive=True
+
+============================================================
+Store 12  |  model_type=single  d=0  m=52
+  Store 12 PCA — PC1 explains 66.39% of macro variance
+  Store 12 [single] — order=(1, 0, 0)  seasonal=(1, 0, 0, 52)  AIC=-322.15  BIC=-310.65
+  Store 12  — Ljung-Box p=0.0113 FAIL  Shapiro p=0.0000  resid_mean=0.00411  resid_std=0.07261
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 12: max_p 3 → 4
+  Store 12 [single] — order=(1, 0, 0)  seasonal=(1, 0, 0, 52)  AIC=-322.15  BIC=-310.65
+  Store 12 [[remediated]] — Ljung-Box p=0.0113 FAIL  Shapiro p=0.0000  resid_mean=0.00411  resid_std=0.07261
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 12: residual autocorrelation persists after remediation. Consider max_Q=1.
+  Store 12 CV — log-MAE 0.0597 ± 0.0186  (4 folds)
+  Store 12 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0240  SMAPE=0.0240  DirAcc=0.9167  beats_naive=True
+
+============================================================
+Store 13  |  model_type=two_model  d=0  m=52
+  Store 13 PCA — PC1 explains 68.64% of macro variance
+  Store 13 [pre-break] — order=(2, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-115.79  BIC=-108.57
+  Store 13 [post-break] — order=(2, 0, 1)  seasonal=(1, 0, 1, 52)  AIC=-211.41  BIC=-194.23
+  Store 13 [post-break] — Ljung-Box p=0.7566 PASS  Shapiro p=0.0000  resid_mean=0.00112  resid_std=0.06941
+  Store 13 CV — log-MAE 0.0530 ± 0.0056  (2 folds)
+  Store 13 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0319  SMAPE=0.0322  DirAcc=0.5833  beats_naive=True
+
+============================================================
+Store 14  |  model_type=single  d=1  m=52
+  Store 14 PCA — PC1 explains 62.75% of macro variance
+  Store 14 [single] — order=(2, 1, 1)  seasonal=(1, 0, 0, 52)  AIC=-246.08  BIC=-231.74
+  Store 14  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10299  resid_std=1.29582
+  Store 14 CV — log-MAE 0.0555 ± 0.0121  (4 folds)
+  Store 14 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0660  SMAPE=0.0639  DirAcc=0.8333  beats_naive=True
+
+============================================================
+Store 15  |  model_type=two_model  d=1  m=52
+  Store 15 PCA — PC1 explains 53.69% of macro variance
+  WARNING: PC1 < 60% (53.69%). Consider holiday-only exog path.
+  Store 15 [pre-break] — order=(0, 1, 1)  seasonal=(0, 0, 0, 52)  AIC=-85.95  BIC=-82.38
+  Store 15 [post-break] — order=(1, 1, 1)  seasonal=(1, 0, 0, 52)  AIC=-155.14  BIC=-142.93
+  Store 15 [post-break] — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.14834  resid_std=1.47919
+  Store 15 CV — log-MAE 0.0813 ± 0.0050  (2 folds)
+  Store 15 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0294  SMAPE=0.0293  DirAcc=0.7500  beats_naive=True
+
+============================================================
+Store 16  |  model_type=single  d=1  m=52
+  Store 16 PCA — PC1 explains 69.17% of macro variance
+  Store 16 [single] — order=(2, 1, 1)  seasonal=(1, 0, 0, 52)  AIC=-315.08  BIC=-300.74
+  Store 16  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10992  resid_std=1.14434
+  WARNING Store 16: wMAPE=0.0370 does not beat naive=0.0349. Apply BIC pass or ensemble fallback.
+  Store 16 CV — log-MAE 0.0479 ± 0.0049  (4 folds)
+  Store 16 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0370  SMAPE=0.0365  DirAcc=1.0000  beats_naive=False
+
+============================================================
+Store 17  |  model_type=single  d=0  m=52
+  Store 17 PCA — PC1 explains 58.50% of macro variance
+  WARNING: PC1 < 60% (58.50%). Consider holiday-only exog path.
+  Store 17 [single] — order=(1, 0, 1)  seasonal=(1, 0, 0, 52)  AIC=-307.78  BIC=-296.28
+  Store 17  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10953  resid_std=1.18899
+  Store 17 CV — log-MAE 0.0818 ± 0.0120  (4 folds)
+  Store 17 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0302  SMAPE=0.0297  DirAcc=0.5833  beats_naive=True
+
+============================================================
+Store 18  |  model_type=level_shift  d=0  m=52
+  Store 18 PCA — PC1 explains 65.64% of macro variance
+  Store 18 [level_shift] — order=(0, 0, 0)  seasonal=(1, 0, 0, 52)  AIC=-171.76  BIC=-163.13
+  Store 18  — Ljung-Box p=0.0000 FAIL  Shapiro p=0.0000  resid_mean=-0.00826  resid_std=0.12425
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 18: max_p 3 → 4
+  Store 18 [level_shift] — order=(0, 0, 0)  seasonal=(1, 0, 0, 52)  AIC=-171.76  BIC=-163.13
+  Store 18 [[remediated]] — Ljung-Box p=0.0000 FAIL  Shapiro p=0.0000  resid_mean=-0.00826  resid_std=0.12425
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 18: residual autocorrelation persists after remediation. Consider max_Q=1.
+  Store 18 CV — log-MAE 0.0389 ± 0.0058  (4 folds)
+  Store 18 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0572  SMAPE=0.0600  DirAcc=0.7500  beats_naive=True
+
+============================================================
+Store 19  |  model_type=two_model  d=0  m=52
+  Store 19 PCA — PC1 explains 53.66% of macro variance
+  WARNING: PC1 < 60% (53.66%). Consider holiday-only exog path.
+C:\Users\Aaron Christian\Documents\BINUS\Semester2\ArtificialIntelligence\AOL\AOL_AI\venv\lib\site-packages\statsmodels\tsa\statespace\sarimax.py:1906: RuntimeWarning: divide by zero encountered in reciprocal
+  return np.roots(self.polynomial_reduced_ma)**-1
+  Store 19 [pre-break] — order=(1, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-102.75  BIC=-97.33
+  Store 19 [post-break] — order=(1, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-170.93  BIC=-163.57
+  Store 19 [post-break] — Ljung-Box p=0.7225 PASS  Shapiro p=0.0019  resid_mean=-0.00186  resid_std=0.08845
+  WARNING Store 19: wMAPE=0.0503 does not beat naive=0.0280. Apply BIC pass or ensemble fallback.
+  Store 19 CV — log-MAE 0.0409 ± 0.0071  (2 folds)
+  Store 19 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0503  SMAPE=0.0498  DirAcc=0.3333  beats_naive=False
+
+============================================================
+Store 20  |  model_type=single  d=0  m=52
+  Store 20 PCA — PC1 explains 63.73% of macro variance
+  Store 20 [single] — order=(1, 0, 1)  seasonal=(1, 0, 1, 52)  AIC=-296.78  BIC=-279.53
+  Store 20  — Ljung-Box p=0.1739 PASS  Shapiro p=0.0011  resid_mean=0.00043  resid_std=0.07766
+  Store 20 CV — log-MAE 0.0635 ± 0.0110  (4 folds)
+  Store 20 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0280  SMAPE=0.0276  DirAcc=0.5000  beats_naive=True
+
+============================================================
+Store 21  |  model_type=two_model  d=1  m=52
+  Store 21 PCA — PC1 explains 64.10% of macro variance
+  Store 21 [pre-break] — order=(1, 1, 0)  seasonal=(0, 0, 0, 52)  AIC=-99.59  BIC=-96.02
+  Store 21 [post-break] — order=(1, 1, 1)  seasonal=(1, 0, 0, 52)  AIC=-181.89  BIC=-172.11
+  Store 21 [post-break] — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.14357  resid_std=1.49667
+  Store 21 CV — log-MAE 0.0639 ± 0.0075  (2 folds)
+  Store 21 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0379  SMAPE=0.0368  DirAcc=0.7500  beats_naive=True
+
+============================================================
+Store 22  |  model_type=single  d=0  m=52
+  Store 22 PCA — PC1 explains 64.87% of macro variance
+  Store 22 [single] — order=(2, 0, 1)  seasonal=(1, 0, 1, 52)  AIC=-293.73  BIC=-273.60
+  Store 22  — Ljung-Box p=0.0900 PASS  Shapiro p=0.0000  resid_mean=-0.00061  resid_std=0.07814
+  Store 22 CV — log-MAE 0.0552 ± 0.0088  (4 folds)
+  Store 22 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0314  SMAPE=0.0314  DirAcc=0.6667  beats_naive=True
+
+============================================================
+Store 23  |  model_type=single  d=1  m=52
+  Store 23 PCA — PC1 explains 69.58% of macro variance
+  Store 23 [single] — order=(1, 1, 0)  seasonal=(1, 0, 1, 52)  AIC=-231.68  BIC=-220.21
+  Store 23  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10815  resid_std=1.23839
+  WARNING Store 23: wMAPE=0.0620 does not beat naive=0.0411. Apply BIC pass or ensemble fallback.
+  Store 23 CV — log-MAE 0.0652 ± 0.0046  (4 folds)
+  Store 23 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0620  SMAPE=0.0635  DirAcc=0.6667  beats_naive=False
+
+============================================================
+Store 24  |  model_type=single  d=0  m=52
+  Store 24 PCA — PC1 explains 62.29% of macro variance
+  Store 24 [single] — order=(1, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-244.88  BIC=-236.25
+  Store 24  — Ljung-Box p=0.0663 PASS  Shapiro p=0.0022  resid_mean=-0.00010  resid_std=0.09317
+  WARNING Store 24: wMAPE=0.0541 does not beat naive=0.0381. Apply BIC pass or ensemble fallback.
+  Store 24 CV — log-MAE 0.0548 ± 0.0037  (4 folds)
+  Store 24 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0541  SMAPE=0.0539  DirAcc=0.5000  beats_naive=False
+
+============================================================
+Store 25  |  model_type=single  d=1  m=52
+  Store 25 PCA — PC1 explains 63.74% of macro variance
+  Store 25 [single] — order=(1, 1, 1)  seasonal=(0, 0, 1, 52)  AIC=-329.80  BIC=-315.46
+  Store 25  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10183  resid_std=1.17494
+  Store 25 CV — log-MAE 0.0591 ± 0.0067  (4 folds)
+  Store 25 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0312  SMAPE=0.0310  DirAcc=0.6667  beats_naive=True
+
+============================================================
+Store 26  |  model_type=single  d=0  m=52
+  Store 26 PCA — PC1 explains 68.79% of macro variance
+  Store 26 [single] — order=(0, 0, 1)  seasonal=(1, 0, 0, 52)  AIC=-299.58  BIC=-288.08
+  Store 26  — Ljung-Box p=0.0061 FAIL  Shapiro p=0.0008  resid_mean=0.00338  resid_std=0.07805
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 26: max_p 3 → 4
+  Store 26 [single] — order=(0, 0, 1)  seasonal=(1, 0, 0, 52)  AIC=-299.58  BIC=-288.08
+  Store 26 [[remediated]] — Ljung-Box p=0.0061 FAIL  Shapiro p=0.0008  resid_mean=0.00338  resid_std=0.07805
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 26: residual autocorrelation persists after remediation. Consider max_Q=1.
+  WARNING Store 26: wMAPE=0.0303 does not beat naive=0.0268. Apply BIC pass or ensemble fallback.
+  Store 26 CV — log-MAE 0.0533 ± 0.0034  (4 folds)
+  Store 26 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0303  SMAPE=0.0301  DirAcc=0.7500  beats_naive=False
+
+============================================================
+Store 27  |  model_type=single  d=0  m=52
+  Store 27 PCA — PC1 explains 46.30% of macro variance
+  WARNING: PC1 < 60% (46.30%). Consider holiday-only exog path.
+  Store 27 [single] — order=(2, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-206.56  BIC=-195.06
+  Store 27  — Ljung-Box p=0.2126 PASS  Shapiro p=0.0000  resid_mean=-0.00026  resid_std=0.10701
+  WARNING Store 27: wMAPE=0.0652 does not beat naive=0.0505. Apply BIC pass or ensemble fallback.
+  Store 27 CV — log-MAE 0.0443 ± 0.0123  (4 folds)
+  Store 27 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0652  SMAPE=0.0647  DirAcc=0.6667  beats_naive=False
+
+============================================================
+Store 28  |  model_type=single  d=0  m=52
+  Store 28 PCA — PC1 explains 66.39% of macro variance
+  Store 28 [single] — order=(1, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-158.76  BIC=-150.13
+  Store 28  — Ljung-Box p=0.0001 FAIL  Shapiro p=0.0000  resid_mean=-0.00032  resid_std=0.12954
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 28: max_p 3 → 4
+  Store 28 [single] — order=(1, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-158.76  BIC=-150.13
+  Store 28 [[remediated]] — Ljung-Box p=0.0001 FAIL  Shapiro p=0.0000  resid_mean=-0.00032  resid_std=0.12954
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 28: residual autocorrelation persists after remediation. Consider max_Q=1.
+  WARNING Store 28: wMAPE=0.1136 does not beat naive=0.0520. Apply BIC pass or ensemble fallback.
+  Store 28 CV — log-MAE 0.1005 ± 0.0046  (4 folds)
+  Store 28 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.1136  SMAPE=0.1102  DirAcc=0.5000  beats_naive=False
+
+============================================================
+Store 29  |  model_type=single  d=0  m=52
+  Store 29 PCA — PC1 explains 64.83% of macro variance
+  Store 29 [single] — order=(1, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-242.91  BIC=-234.29
+  Store 29  — Ljung-Box p=0.0398 FAIL  Shapiro p=0.0010  resid_mean=-0.00011  resid_std=0.09381
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 29: max_p 3 → 4
+  Store 29 [single] — order=(1, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-242.91  BIC=-234.29
+  Store 29 [[remediated]] — Ljung-Box p=0.0398 FAIL  Shapiro p=0.0010  resid_mean=-0.00011  resid_std=0.09381
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 29: residual autocorrelation persists after remediation. Consider max_Q=1.
+  WARNING Store 29: wMAPE=0.0651 does not beat naive=0.0570. Apply BIC pass or ensemble fallback.
+  Store 29 CV — log-MAE 0.0514 ± 0.0090  (4 folds)
+  Store 29 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0651  SMAPE=0.0654  DirAcc=0.5833  beats_naive=False
+
+============================================================
+Store 30  |  model_type=single  d=0  m=52
+  Store 30 PCA — PC1 explains 64.10% of macro variance
+  Store 30 [single] — order=(0, 0, 1)  seasonal=(0, 0, 1, 52)  AIC=-406.61  BIC=-395.11
+  Store 30  — Ljung-Box p=0.0000 FAIL  Shapiro p=0.0029  resid_mean=-0.00338  resid_std=0.04991
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 30: max_p 3 → 4
+  Store 30 [single] — order=(0, 0, 1)  seasonal=(0, 0, 1, 52)  AIC=-406.61  BIC=-395.11
+  Store 30 [[remediated]] — Ljung-Box p=0.0000 FAIL  Shapiro p=0.0029  resid_mean=-0.00338  resid_std=0.04991
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 30: residual autocorrelation persists after remediation. Consider max_Q=1.
+  Store 30 CV — log-MAE 0.0272 ± 0.0025  (4 folds)
+  Store 30 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0400  SMAPE=0.0409  DirAcc=0.5833  beats_naive=True
+
+============================================================
+Store 31  |  model_type=single  d=0  m=52
+  Store 31 PCA — PC1 explains 64.10% of macro variance
+  Store 31 [single] — order=(2, 0, 1)  seasonal=(1, 0, 0, 52)  AIC=-424.37  BIC=-410.00
+  Store 31  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10605  resid_std=1.24199
+  Store 31 CV — log-MAE 0.0273 ± 0.0037  (4 folds)
+  Store 31 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0172  SMAPE=0.0169  DirAcc=0.6667  beats_naive=True
+
+============================================================
+Store 32  |  model_type=two_model  d=0  m=52
+  Store 32 PCA — PC1 explains 67.77% of macro variance
+  Store 32 [pre-break] — order=(3, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-132.10  BIC=-123.07
+  Store 32 [post-break] — order=(2, 0, 1)  seasonal=(1, 0, 1, 52)  AIC=-232.08  BIC=-214.90
+  Store 32 [post-break] — Ljung-Box p=0.9703 PASS  Shapiro p=0.0000  resid_mean=0.00094  resid_std=0.06261
+  WARNING Store 32: wMAPE=0.0312 does not beat naive=0.0311. Apply BIC pass or ensemble fallback.
+  Store 32 CV — log-MAE 0.0318 ± 0.0049  (2 folds)
+  Store 32 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0312  SMAPE=0.0314  DirAcc=0.6667  beats_naive=False
+
+============================================================
+Store 33  |  model_type=single  d=0  m=52
+  Store 33 PCA — PC1 explains 69.70% of macro variance
+  Store 33 [single] — order=(0, 0, 2)  seasonal=(0, 0, 1, 52)  AIC=-320.36  BIC=-305.98
+  Store 33  — Ljung-Box p=0.0000 FAIL  Shapiro p=0.7624  resid_mean=-0.00173  resid_std=0.06934
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 33: max_p 3 → 4
+  Store 33 [single] — order=(0, 0, 2)  seasonal=(0, 0, 1, 52)  AIC=-320.36  BIC=-305.98
+  Store 33 [[remediated]] — Ljung-Box p=0.0000 FAIL  Shapiro p=0.7624  resid_mean=-0.00173  resid_std=0.06934
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 33: residual autocorrelation persists after remediation. Consider max_Q=1.
+  Store 33 CV — log-MAE 0.0796 ± 0.0086  (4 folds)
+  Store 33 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0408  SMAPE=0.0404  DirAcc=0.9167  beats_naive=True
+
+============================================================
+Store 34  |  model_type=two_model  d=0  m=52
+  Store 34 PCA — PC1 explains 47.96% of macro variance
+  WARNING: PC1 < 60% (47.96%). Consider holiday-only exog path.
+  Store 34 [pre-break] — order=(2, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-132.61  BIC=-125.38
+  Store 34 [post-break] — order=(0, 0, 2)  seasonal=(1, 0, 0, 52)  AIC=-243.20  BIC=-230.93
+  Store 34 [post-break] — Ljung-Box p=0.3466 PASS  Shapiro p=0.0319  resid_mean=0.00476  resid_std=0.05749
+  Store 34 CV — log-MAE 0.0412 ± 0.0032  (2 folds)
+  Store 34 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0183  SMAPE=0.0182  DirAcc=0.7500  beats_naive=True
+
+============================================================
+Store 35  |  model_type=single  d=1  m=52
+  Store 35 PCA — PC1 explains 54.08% of macro variance
+  WARNING: PC1 < 60% (54.08%). Consider holiday-only exog path.
+  Store 35 [single] — order=(0, 1, 0)  seasonal=(1, 0, 1, 52)  AIC=-149.13  BIC=-140.52
+  Store 35  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10646  resid_std=1.23429
+  WARNING Store 35: wMAPE=0.0778 does not beat naive=0.0749. Apply BIC pass or ensemble fallback.
+  Store 35 CV — log-MAE 0.0558 ± 0.0177  (4 folds)
+  Store 35 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0778  SMAPE=0.0749  DirAcc=0.6667  beats_naive=False
+
+============================================================
+Store 36  |  model_type=single  d=1  m=52
+  Store 36 PCA — PC1 explains 63.74% of macro variance
+  Store 36 [single] — order=(3, 1, 0)  seasonal=(0, 0, 0, 52)  AIC=-449.65  BIC=-435.31
+  Store 36  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.09958  resid_std=1.14170
+  Store 36 CV — log-MAE 0.0322 ± 0.0104  (4 folds)
+  Store 36 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0285  SMAPE=0.0286  DirAcc=0.9167  beats_naive=True
+
+============================================================
+Store 37  |  model_type=single  d=0  m=52
+  Store 37 PCA — PC1 explains 63.31% of macro variance
+  Store 37 [single] — order=(0, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-452.05  BIC=-446.30
+  Store 37  — Ljung-Box p=0.0097 FAIL  Shapiro p=0.0070  resid_mean=0.00000  resid_std=0.04261
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 37: max_p 3 → 4
+  Store 37 [single] — order=(0, 0, 0)  seasonal=(0, 0, 0, 52)  AIC=-452.05  BIC=-446.30
+  Store 37 [[remediated]] — Ljung-Box p=0.0097 FAIL  Shapiro p=0.0070  resid_mean=0.00000  resid_std=0.04261
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 37: residual autocorrelation persists after remediation. Consider max_Q=1.
+  WARNING Store 37: wMAPE=0.0254 does not beat naive=0.0212. Apply BIC pass or ensemble fallback.
+  Store 37 CV — log-MAE 0.0271 ± 0.0036  (4 folds)
+  Store 37 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0254  SMAPE=0.0254  DirAcc=0.0833  beats_naive=False
+
+============================================================
+Store 38  |  model_type=single  d=1  m=52
+  Store 38 PCA — PC1 explains 66.39% of macro variance
+  Store 38 [single] — order=(3, 1, 2)  seasonal=(1, 0, 0, 52)  AIC=-439.42  BIC=-419.35
+  Store 38  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.10197  resid_std=1.11783
+  Store 38 CV — log-MAE 0.0385 ± 0.0044  (4 folds)
+  Store 38 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0580  SMAPE=0.0568  DirAcc=0.7500  beats_naive=True
+
+============================================================
+Store 39  |  model_type=two_model  d=1  m=52
+  Store 39 PCA — PC1 explains 63.23% of macro variance
+  Store 39 [pre-break] — order=(0, 1, 1)  seasonal=(0, 0, 0, 52)  AIC=-81.91  BIC=-78.35
+  Store 39 [post-break] — order=(1, 1, 1)  seasonal=(1, 0, 0, 52)  AIC=-173.08  BIC=-163.31
+  Store 39 [post-break] — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.16557  resid_std=1.55863
+  Store 39 CV — log-MAE 0.0644 ± 0.0171  (2 folds)
+  Store 39 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0251  SMAPE=0.0253  DirAcc=0.7500  beats_naive=True
+
+============================================================
+Store 40  |  model_type=single  d=0  m=52
+  Store 40 PCA — PC1 explains 69.24% of macro variance
+  Store 40 [single] — order=(0, 0, 1)  seasonal=(1, 0, 0, 52)  AIC=-294.30  BIC=-282.80
+  Store 40  — Ljung-Box p=0.0066 FAIL  Shapiro p=0.0525  resid_mean=0.00788  resid_std=0.07918
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 40: max_p 3 → 4
+  Store 40 [single] — order=(0, 0, 1)  seasonal=(1, 0, 0, 52)  AIC=-294.30  BIC=-282.80
+  Store 40 [[remediated]] — Ljung-Box p=0.0066 FAIL  Shapiro p=0.0525  resid_mean=0.00788  resid_std=0.07918
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 40: residual autocorrelation persists after remediation. Consider max_Q=1.
+  WARNING Store 40: wMAPE=0.0335 does not beat naive=0.0286. Apply BIC pass or ensemble fallback.
+  Store 40 CV — log-MAE 0.0481 ± 0.0035  (4 folds)
+  Store 40 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0335  SMAPE=0.0328  DirAcc=0.6667  beats_naive=False
+
+============================================================
+Store 41  |  model_type=two_model  d=1  m=52
+  Store 41 PCA — PC1 explains 68.80% of macro variance
+  Store 41 [pre-break] — order=(1, 1, 0)  seasonal=(0, 0, 0, 52)  AIC=-85.05  BIC=-81.48
+  Store 41 [post-break] — order=(1, 1, 0)  seasonal=(1, 0, 1, 52)  AIC=-165.06  BIC=-155.29
+  Store 41 [post-break] — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.16637  resid_std=1.54516
+  Store 41 CV — log-MAE 0.0430 ± 0.0070  (2 folds)
+  Store 41 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0363  SMAPE=0.0361  DirAcc=0.5833  beats_naive=True
+
+============================================================
+Store 42  |  model_type=single  d=0  m=52
+  Store 42 PCA — PC1 explains 69.70% of macro variance
+  Store 42 [single] — order=(0, 0, 1)  seasonal=(1, 0, 0, 52)  AIC=-326.35  BIC=-314.85
+  Store 42  — Ljung-Box p=0.0000 FAIL  Shapiro p=0.0421  resid_mean=0.00804  resid_std=0.06944
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 42: max_p 3 → 4
+  Store 42 [single] — order=(0, 0, 1)  seasonal=(1, 0, 0, 52)  AIC=-326.35  BIC=-314.85
+  Store 42 [[remediated]] — Ljung-Box p=0.0000 FAIL  Shapiro p=0.0421  resid_mean=0.00804  resid_std=0.06944
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 42: residual autocorrelation persists after remediation. Consider max_Q=1.
+  WARNING Store 42: wMAPE=0.0360 does not beat naive=0.0339. Apply BIC pass or ensemble fallback.
+  Store 42 CV — log-MAE 0.0652 ± 0.0065  (4 folds)
+  Store 42 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0360  SMAPE=0.0361  DirAcc=0.8333  beats_naive=False
+
+============================================================
+Store 43  |  model_type=single  d=0  m=52
+  Store 43 PCA — PC1 explains 44.58% of macro variance
+  WARNING: PC1 < 60% (44.58%). Consider holiday-only exog path.
+  Store 43 [single] — order=(0, 0, 0)  seasonal=(0, 0, 1, 52)  AIC=-342.35  BIC=-333.72
+  Store 43  — Ljung-Box p=0.0000 FAIL  Shapiro p=0.2315  resid_mean=-0.00314  resid_std=0.06461
+    ACTION: increase max_p by 1 in config and refit.
+  Remediating Store 43: max_p 3 → 4
+  Store 43 [single] — order=(0, 0, 0)  seasonal=(0, 0, 1, 52)  AIC=-342.35  BIC=-333.72
+  Store 43 [[remediated]] — Ljung-Box p=0.0000 FAIL  Shapiro p=0.2315  resid_mean=-0.00314  resid_std=0.06461
+    ACTION: increase max_p by 1 in config and refit.
+  WARNING Store 43: residual autocorrelation persists after remediation. Consider max_Q=1.
+  Store 43 CV — log-MAE 0.0332 ± 0.0057  (4 folds)
+  Store 43 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0265  SMAPE=0.0266  DirAcc=0.7500  beats_naive=True
+
+============================================================
+Store 44  |  model_type=single  d=1  m=52
+  Store 44 PCA — PC1 explains 68.88% of macro variance
+  Store 44 [single] — order=(3, 1, 0)  seasonal=(1, 0, 1, 52)  AIC=-446.93  BIC=-429.72
+  Store 44  — Ljung-Box p=1.0000 PASS  Shapiro p=0.0000  resid_mean=0.09863  resid_std=1.09678
+  Store 44 CV — log-MAE 0.0297 ± 0.0041  (4 folds)
+  Store 44 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0277  SMAPE=0.0275  DirAcc=0.5000  beats_naive=True
+
+============================================================
+Store 45  |  model_type=single  d=0  m=52
+  Store 45 PCA — PC1 explains 62.75% of macro variance
+  Store 45 [single] — order=(2, 0, 1)  seasonal=(1, 0, 0, 52)  AIC=-303.78  BIC=-286.53
+  Store 45  — Ljung-Box p=0.1808 PASS  Shapiro p=0.0003  resid_mean=-0.00193  resid_std=0.07552
+  WARNING Store 45: wMAPE=0.0380 does not beat naive=0.0347. Apply BIC pass or ensemble fallback.
+  Store 45 CV — log-MAE 0.0579 ± 0.0128  (4 folds)
+  Store 45 forecast — weeks 2012-11-02 → 2013-01-18
+  wMAPE=0.0380  SMAPE=0.0372  DirAcc=0.5833  beats_naive=False
+
+============================================================
+Training complete — 45 stores
+Beats naive:        28 / 45
+Mean wMAPE:         0.0402
+wMAPE range:        0.0172 – 0.1136
+Ljung-Box failures: ['2', '5', '8', '9', '12', '18', '26', '28', '29', '30', '33', '37', '40', '42', '43']
+Metrics written to: outputs/metrics.json
