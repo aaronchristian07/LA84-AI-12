@@ -59,6 +59,31 @@ KNOWN_STORE_IDS = {1, 7, 14}
 _FRONTEND_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), 'components', 'forecast_ui', 'frontend', 'dist')
 )
+print(_FRONTEND_DIR)
+
+
+def get_file_structure(startpath):
+    structure = []
+    for root, dirs, files in os.walk(startpath):
+        # Exclude hidden directories (like .git, .virtualenvs)
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        level = root.replace(startpath, '').count(os.sep)
+        indent = ' ' * 4 * (level)
+        structure.append(f"{indent}{os.path.basename(root)}/")
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            if not f.startswith('.'):
+                structure.append(f"{subindent}{f}")
+    return "\n".join(structure)
+
+st.title("Deployed File Hierarchy")
+# '.' targets the current working directory of the container
+current_dir = os.path.abspath(".") 
+st.write(f"**Working Directory:** `{current_dir}`")
+
+# Display the tree
+st.code(get_file_structure(current_dir))
+
 _forecast_ui = components.declare_component('forecast_ui', path=_FRONTEND_DIR)
 
 # ── Cached loaders ────────────────────────────────────────────────────────────
@@ -379,7 +404,6 @@ def _init():
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
-
 def main():
     _init()
     ss = st.session_state
