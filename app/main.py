@@ -3,6 +3,7 @@ import io
 import json
 import os
 import random
+import subprocess
 
 import joblib
 import numpy as np
@@ -14,13 +15,11 @@ from statsmodels.tsa.seasonal import STL
 from utils.preprocessing import (
     parse_and_sort,
     preprocess_store,
-    apply_pca,
     build_exog_matrix,
     fill_date_index,
     winsorize_series,
     log_transform,
     make_level_shift_dummy,
-    MACRO_COLS,
 )
 from utils.sarima_model import evaluate, fit_single, generate_forecast
 
@@ -30,6 +29,17 @@ st.set_page_config(
     page_icon="📦",
     layout="wide",
 )
+
+@st.cache_resource
+def run_npm_install():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    frontend_dir = os.path.join(current_dir, "components", "forecast_ui", "frontend")
+    
+    if os.path.exists(frontend_dir):
+        subprocess.run(["npm", "install"], cwd=frontend_dir, check=True)
+        subprocess.run(["npm", "run", "build"], cwd=frontend_dir, check=True)
+
+run_npm_install()
 
 # Hide all Streamlit chrome — React owns 100% of the visible UI
 st.markdown("""
