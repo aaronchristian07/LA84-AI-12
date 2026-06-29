@@ -203,6 +203,9 @@ input[type="range"] {
 .btn-forecast:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .forecast-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   color: var(--green);
   margin-left: 16px;

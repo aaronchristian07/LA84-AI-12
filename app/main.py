@@ -146,16 +146,19 @@ def _extract_metrics(eval_result, data, model) -> dict:
     )
     beats_naive = bool(wmape < naive_wmape) if not (np.isnan(wmape) or np.isnan(naive_wmape)) else False
     return {
-        'wMAPE': wmape, 'DirectionalAccuracy': dir_acc,
-        'beats_naive': beats_naive,
-        'model_type': data['cfg'].get('model_type', 'single'),
-        'sarima_order': str(getattr(model, 'order', 'N/A')),
-        'seasonal_order': str(getattr(model, 'seasonal_order', 'N/A')),
-        'n_weeks': len(data['log_sales']),
-        'MAPE': eval_result['MAPE'], 'MAE': eval_result['MAE'],
-        'RMSE': eval_result['RMSE'], 'SMAPE': eval_result['SMAPE'],
-        'naive_wMAPE': naive_wmape,
-        'cv_mae_mean': 'N/A', 'cv_mae_std': 'N/A', 'lb_pass': 'N/A',
+        'wMAPE':               wmape,
+        'DirectionalAccuracy': dir_acc,
+        'beats_naive':         beats_naive,
+        'model_type':          data['cfg'].get('model_type', 'single'),
+        'sarima_order':        str(getattr(model, 'order', 'N/A')),
+        'seasonal_order':      str(getattr(model, 'seasonal_order', 'N/A')),
+        'n_weeks':             len(data['log_sales']),
+        'RMSE':                eval_result['RMSE'],
+        'SMAPE':               eval_result['SMAPE'],
+        'naive_wMAPE':         naive_wmape,
+        'cv_mae_mean':         'N/A',
+        'cv_mae_std':          'N/A',
+        'lb_pass':             'N/A',
     }
 
 
@@ -178,28 +181,33 @@ def _run_forecast(raw_df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     model   = copy.deepcopy(artifacts['model'])
     fc_dict = generate_forecast(model, data)
 
-    if stored_metrics:
-        metrics = {
-            'wMAPE':               stored_metrics.get('wMAPE', float('nan')),
-            'DirectionalAccuracy': stored_metrics.get('DirectionalAccuracy', float('nan')),
-            'beats_naive':         stored_metrics.get('beats_naive', False),
-            'model_type':          stored_metrics.get('model_type', 'single'),
-            'sarima_order':        str(stored_metrics.get('sarima_order', 'N/A')),
-            'seasonal_order':      str(stored_metrics.get('seasonal_order', 'N/A')),
-            'n_weeks':             stored_metrics.get('n_weeks', len(data['log_sales'])),
-            'MAPE':                stored_metrics.get('MAPE', float('nan')),
-            'MAE':                 stored_metrics.get('MAE', float('nan')),
-            'RMSE':                stored_metrics.get('RMSE', float('nan')),
-            'SMAPE':               stored_metrics.get('SMAPE', float('nan')),
-            'naive_wMAPE':         stored_metrics.get('naive_wMAPE', float('nan')),
-            'cv_mae_mean':         stored_metrics.get('cv_wMAPE_mean', 'N/A'),
-            'cv_mae_std':          stored_metrics.get('cv_wMAPE_std', 'N/A'),
-            'lb_pass':             stored_metrics.get('lb_pass', 'N/A'),
-        }
-    else:
-        eval_result = evaluate(data, copy.deepcopy(model))
-        metrics     = _extract_metrics(eval_result, data, model)
+    # if stored_metrics:
+    #     metrics = {
+    #         'wMAPE':               stored_metrics.get('wMAPE', float('nan')),
+    #         'DirectionalAccuracy': stored_metrics.get('DirectionalAccuracy', float('nan')),
+    #         'beats_naive':         stored_metrics.get('beats_naive', False),
+    #         'model_type':          stored_metrics.get('model_type', 'single'),
+    #         'sarima_order':        str(stored_metrics.get('sarima_order', 'N/A')),
+    #         'seasonal_order':      str(stored_metrics.get('seasonal_order', 'N/A')),
+    #         'n_weeks':             stored_metrics.get('n_weeks', len(data['log_sales'])),
+    #         'MAPE':                stored_metrics.get('MAPE', float('nan')),
+    #         'MAE':                 stored_metrics.get('MAE', float('nan')),
+    #         'RMSE':                stored_metrics.get('RMSE', float('nan')),
+    #         'SMAPE':               stored_metrics.get('SMAPE', float('nan')),
+    #         'naive_wMAPE':         stored_metrics.get('naive_wMAPE', float('nan')),
+    #         'cv_mae_mean':         stored_metrics.get('cv_wMAPE_mean', 'N/A'),
+    #         'cv_mae_std':          stored_metrics.get('cv_wMAPE_std', 'N/A'),
+    #         'lb_pass':             stored_metrics.get('lb_pass', 'N/A'),
+    #     }
+    # else:
+    #     eval_result = evaluate(data, copy.deepcopy(model))
+    #     metrics     = _extract_metrics(eval_result, data, model)
 
+    eval_result = evaluate(data, copy.deepcopy(model))
+    print("extracting metrics...")
+    metrics     = _extract_metrics(eval_result, data, model)
+
+    print("fc_df")
     fc_df = pd.DataFrame({
         'Week':           fc_dict['dates'],
         'Forecast_Sales': fc_dict['forecast'],
@@ -207,6 +215,7 @@ def _run_forecast(raw_df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         'Upper_95':       fc_dict['upper_95'],
         'Is_Holiday':     fc_dict['is_holiday'],
     })
+    print("returning fc_df and metrics")
     return fc_df, metrics
 
 
@@ -400,6 +409,7 @@ def main():
             return
         chosen = random.choice(files)
         try:
+            print("Selected file:", DATA_DIR, chosen)
             raw = pd.read_csv(os.path.join(DATA_DIR, chosen))
             err = _validate_upload(raw)
             if err:
@@ -440,7 +450,6 @@ def main():
     if ss['app_state'] == 'forecasting' and ss['user_df'] is not None:
         try:
             fc_df, metrics = _run_forecast(ss['user_df'])
-            # historical     = ss['historical'] or pd.DataFrame(columns=['Date', 'Weekly_Sales'])
             historical = ss['historical'] if ('historical' in ss and not ss['historical'].empty) else pd.DataFrame(columns=['Date', 'Weekly_Sales'])
             alerts         = _compute_alerts(fc_df, historical, ss['overstock'])
             

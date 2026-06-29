@@ -1,3 +1,4 @@
+import { Download } from 'react-feather'
 import type { ForecastRow, Metrics } from '../types'
 
 interface Props {
@@ -65,7 +66,6 @@ export default function ReportTab({ forecast, metrics, storeId }: Props) {
     r.forecast_sales > best.forecast_sales ? r : best, forecast[0])
 
   const summaryRows: [string, string][] = [
-    ['Store',          label],
     ['Model Type',     mtype],
     ['SARIMA Order',   metrics.sarima_order],
     ['Seasonal Order', metrics.seasonal_order],
@@ -81,7 +81,7 @@ export default function ReportTab({ forecast, metrics, storeId }: Props) {
   return (
     <div className="tab-content">
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>
-        {label} — Demand Report
+        Demand Report
       </h2>
 
       {/* Forecast summary */}
@@ -149,7 +149,8 @@ export default function ReportTab({ forecast, metrics, storeId }: Props) {
               `store_${storeId}_forecast_12w.csv`
             )}
           >
-            ↓ Forecast CSV
+            <Download size={12} />
+            Forecast CSV
           </button>
           <button
             className="btn-download"
@@ -158,7 +159,8 @@ export default function ReportTab({ forecast, metrics, storeId }: Props) {
               `store_${storeId}_demand_report.csv`
             )}
           >
-            ↓ Full Report CSV
+            <Download size={12} />
+            Full Report CSV
           </button>
         </div>
       </div>

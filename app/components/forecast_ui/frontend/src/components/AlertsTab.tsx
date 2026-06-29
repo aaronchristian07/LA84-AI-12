@@ -1,3 +1,4 @@
+import { Check } from 'react-feather'
 import type { Alert } from '../types'
 
 interface Props {
@@ -26,7 +27,9 @@ export default function AlertsTab({ alerts }: Props) {
 
       {alerts.length === 0 ? (
         <div className="empty-state">
-          <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+            <Check size={28} color="var(--green)" />
+          </div>
           No alerts for the forecast period.
         </div>
       ) : (

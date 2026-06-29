@@ -193,50 +193,68 @@ def diagnose_residuals(model, label: str = '') -> dict:
 
 def evaluate(data: dict, model) -> dict:
     """
-    Evaluate on held-out test set (last forecast_horizon weeks).
-    All metrics computed on original scale after inverse_log_transform.
+    Computes all evaluation metrics on the original (expm1) scale.
+
+    For two_model stores: test split is within the post-break segment.
+    The test set covers the last 12 weeks of the post-break data.
+    test_exog is rebuilt without level_shift (consistent with fit_two_model).
 
     Metrics:
-        wMAPE              — weighted MAPE; robust to near-zero denominators
-        SMAPE              — symmetric MAPE
-        DirectionalAccuracy — fraction of weeks where forecast direction matches actuals
-        RMSE               — on original scale
+        wMAPE  — primary; weights errors by actual magnitude; robust to high CV
+        SMAPE  — symmetric; bounded [0,2]; handles near-zero actuals
+        MAPE   — reference only; usable here because CV <= 0.30
+        MAE    — interpretable in original sales units ($)
+        RMSE   — penalizes large errors; more sensitive to outliers than MAE
+        DA     — Directional Accuracy; fraction of weeks where direction matches actual
     """
-    cfg      = data['cfg']
-    test_y   = data['test_y']
-    test_exog = data['test_exog']
+    cfg        = data['cfg']
+    test_weeks = cfg['forecast_horizon']
 
     if cfg['model_type'] == 'two_model':
-        log_sales = data['log_sales']
-        break_idx = data['break_idx']
-        horizon   = cfg['forecast_horizon']
-        post_y    = log_sales.iloc[break_idx:]
-        test_y    = post_y.iloc[-horizon:]
-        store_df  = data['store_df']
-        scaler    = data['scaler']
-        pca       = data['pca']
-        test_exog = build_exog_matrix(test_y.index, store_df, scaler, pca)
+        break_idx  = data['break_idx']
+        post_full  = data['log_sales'].iloc[break_idx:]
+        test_y_log = post_full.iloc[-test_weeks:]
+        test_exog  = build_exog_matrix(
+            test_y_log.index,
+            data['store_df'],
+            data['scaler'],
+            data['pca'],
+        )
+        # Reference point for directional accuracy: last post-break training week
+        y_prev = float(np.expm1(post_full.iloc[-(test_weeks + 1)]))
+    else:
+        test_y_log = data['test_y']
+        test_exog  = data['test_exog']
+        y_prev     = float(np.expm1(data['train_y'].iloc[-1]))
 
-    log_pred = model.predict(n_periods=len(test_y), exogenous=test_exog)
-    pred     = inverse_log_transform(log_pred)
-    true     = inverse_log_transform(test_y.values)
+    pred_log, ci = model.predict(
+        n_periods=len(test_y_log),
+        exogenous=test_exog,
+        return_conf_int=True,
+        alpha=0.05,
+    )
 
-    wmape = float(np.sum(np.abs(true - pred)) / (np.sum(np.abs(true)) + 1e-8))
-    smape = float(np.mean(
-        2 * np.abs(pred - true) / (np.abs(pred) + np.abs(true) + 1e-8)
-    ))
-    rmse  = float(np.sqrt(np.mean((true - pred) ** 2)))
+    y_true = np.expm1(test_y_log.values)
+    y_pred = np.expm1(pred_log)
+    eps    = 1e-8
 
-    # Directional accuracy: compare direction of change vs previous period
-    true_diff = np.diff(true)
-    pred_diff = np.diff(pred)
-    dir_acc   = float(np.mean(np.sign(true_diff) == np.sign(pred_diff)))
+    wmape = float(np.sum(np.abs(y_true - y_pred)) / (np.sum(np.abs(y_true)) + eps))
+    smape = float(np.mean(2 * np.abs(y_true - y_pred) / (np.abs(y_true) + np.abs(y_pred) + eps)))
+    mape  = float(np.mean(np.abs((y_true - y_pred) / (y_true + eps))))
+    mae   = float(np.mean(np.abs(y_true - y_pred)))
+    rmse  = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
+
+    actual_dir = np.sign(np.diff(np.concatenate([[y_prev], y_true])))
+    pred_dir   = np.sign(np.diff(np.concatenate([[y_prev], y_pred])))
+    da         = float(np.mean(actual_dir == pred_dir))
 
     return {
         'wMAPE':               round(wmape, 4),
         'SMAPE':               round(smape, 4),
-        'RMSE':                round(rmse, 2),
-        'DirectionalAccuracy': round(dir_acc, 4),
+        'MAPE':                round(mape,  4),
+        'MAE':                 round(mae,   2),
+        'RMSE':                round(rmse,  2),
+        'DirectionalAccuracy': round(da,    4),
     }
 
 

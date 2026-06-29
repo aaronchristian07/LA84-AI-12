@@ -1,5 +1,6 @@
 import { useRef, useState, type DragEvent, type ChangeEvent } from 'react'
 import { Streamlit } from '../streamlit'
+import { Check, FolderPlus } from 'react-feather'
 
 interface Props {
   state:           string
@@ -130,7 +131,9 @@ export default function UploadPanel({
             onChange={onFileChange}
             onClick={e => e.stopPropagation()}
           />
-          <div className="drop-icon">📂</div>
+          <div className="drop-icon">
+            <FolderPlus size={28} />
+          </div>
           <div className="drop-label">
             {fileName || hasData
               ? <strong>{fileLabel}</strong>
@@ -184,7 +187,10 @@ export default function UploadPanel({
         </button>
 
         {hasForecast && !isForecasting && (
-          <span className="forecast-status">Forecast ready</span>
+          <div className="forecast-status">
+            <Check size={16} />
+            Forecast ready
+          </div>
         )}
       </div>
 
