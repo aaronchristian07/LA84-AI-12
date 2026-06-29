@@ -34,7 +34,6 @@ from utils.preprocessing import (
 warnings.filterwarnings('ignore')
 
 _MODEL_PATH      = 'models/model.pkl'
-_MODEL_PRE_PATH  = 'models/model_pre.pkl'
 _MODEL_POST_PATH = 'models/model_post.pkl'
 _SCALER_PATH     = 'app/outputs/pca_scaler.pkl'
 _PCA_PATH        = 'app/outputs/pca_model.pkl'
@@ -398,18 +397,7 @@ def generate_forecast(model, data: dict) -> dict:
 
     # Refit on full series via update (deepcopy to avoid mutating cached model)
     m = copy.deepcopy(model)
-
-    if cfg['model_type'] == 'two_model':
-        # For two_model the model was already fit on train_post; update with test_post
-        post_y    = data['log_sales'].iloc[break_idx:]
-        horizon_  = cfg['forecast_horizon']
-        test_post = post_y.iloc[-horizon_:]
-        test_post_ex = build_exog_matrix(test_post.index, store_df, scaler, pca)
-        m.update(test_post, exogenous=test_post_ex)
-    else:
-        test_y   = data['test_y']
-        test_ex  = data['test_exog']
-        m.update(test_y, exogenous=test_ex)
+    m.update(full_y, exogenous=full_exog)
 
     # Build future exog
     last_date    = full_y.index[-1]
@@ -506,8 +494,12 @@ def load_model(model_type: str = 'single'):
     For single/level_shift: loads model.pkl.
     """
     if model_type == 'two_model':
-        return joblib.load(_MODEL_POST_PATH)
-    return joblib.load(_MODEL_PATH)
+        model = joblib.load(_MODEL_POST_PATH)
+        model_copy = copy.deepcopy(model)
+        return model_copy
+    model = joblib.load(_MODEL_PATH)
+    model_copy = copy.deepcopy(model)
+    return model_copy
 
 
 def load_pca_artifacts() -> tuple:
