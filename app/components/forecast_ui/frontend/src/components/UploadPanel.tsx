@@ -7,7 +7,6 @@ interface Props {
   overstock_pct:   number
   hasData:         boolean
   hasForecast:     boolean
-  storeId:         number | null
   statusMessage:   string | null
   error:           string | null
 }
@@ -18,7 +17,6 @@ export default function UploadPanel({
   overstock_pct,
   hasData,
   hasForecast,
-  storeId,
   statusMessage,
   error,
 }: Props) {
@@ -103,8 +101,8 @@ export default function UploadPanel({
 
   const fileLabel = fileName
     ? fileName
-    : hasData && storeId != null
-      ? `Store ${storeId} data loaded`
+    : hasData
+      ? `Data loaded`
       : hasData
         ? 'Data loaded'
         : 'Drop CSV here or click to browse'
@@ -139,7 +137,7 @@ export default function UploadPanel({
               : <><strong>Choose a file</strong> or drag and drop</>}
           </div>
           <div className="drop-hint">
-            CSV: Store, Date (DD-MM-YYYY), Weekly_Sales, Holiday_Flag,
+            CSV: Date (DD-MM-YYYY), Weekly_Sales, Holiday_Flag,
             Temperature, Fuel_Price, CPI, Unemployment · Min 65 weeks
           </div>
         </div>

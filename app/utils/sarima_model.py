@@ -1,478 +1,517 @@
 """
-utils/sarima_model.py
-Walmart SARIMA — Model Fitting, Evaluation, Forecasting
+Model Fitting, Evaluation, CV, Forecast
+
+All functions operate on the data dict returned by preprocess_store.
+No function accepts or surfaces a store_id argument.
+Artifact paths are suffix-free: models/model.pkl, app/outputs/pca_scaler.pkl, etc.
 
 Functions:
-    fit_single          — SARIMAX for model_type = single / level_shift
-    fit_two_model       — two SARIMAX fits split at break_idx (model_type = two_model)
-    diagnose_residuals  — Ljung-Box + Shapiro-Wilk on model residuals
-    evaluate            — held-out test metrics (wMAPE, SMAPE, MAPE, MAE, RMSE, DA)
-    naive_benchmark     — seasonal naive (lag-52) as accuracy floor
+    fit_single          — fit SARIMA for single / level_shift model_type
+    fit_two_model       — fit pre/post-break models for two_model model_type
+    diagnose_residuals  — Ljung-Box + normality checks on model residuals
+    evaluate            — wMAPE, SMAPE, DirectionalAccuracy on test set
+    naive_benchmark     — seasonal naive baseline (lag-52 on log scale)
     walk_forward_cv     — expanding-window cross-validation
-    generate_forecast   — production 12-week ahead forecast (refits on full series)
+    generate_forecast   — refit on full series, produce 12-week forecast
 """
 
+import copy
+import warnings
 import numpy as np
 import pandas as pd
-import holidays as hol_lib
-from pmdarima import auto_arima
-# RollingForecastCV / cross_val_score removed — exogenous not supported by
-# pmdarima's cross_val_score. Walk-forward CV implemented manually in walk_forward_cv().
+import joblib
+from scipy import stats
 from statsmodels.stats.diagnostic import acorr_ljungbox
-from scipy.stats import shapiro
+import pmdarima as pm
 
 from utils.preprocessing import (
     build_exog_matrix,
-    apply_pca,
+    inverse_log_transform,
+    make_level_shift_dummy,
     MACRO_COLS,
 )
 
+warnings.filterwarnings('ignore')
 
-# ── Helper: auto_arima call with locked config ───────────────────────────────
+_MODEL_PATH      = 'models/model.pkl'
+_MODEL_PRE_PATH  = 'models/model_pre.pkl'
+_MODEL_POST_PATH = 'models/model_post.pkl'
+_SCALER_PATH     = 'app/outputs/pca_scaler.pkl'
+_PCA_PATH        = 'app/outputs/pca_model.pkl'
 
-def _fit_arima(y: pd.Series,
-               exog: pd.DataFrame,
-               cfg: dict,
-               label: str,
-               store_id: int,
-               ic: str = 'aic') -> object:
+
+# ── Fit: single / level_shift ─────────────────────────────────────────────────
+
+def fit_single(data: dict):
     """
-    Internal helper. Runs auto_arima with config-locked bounds.
-    ic: 'aic' (default) or 'bic' (used in Priority 2 accuracy pass).
+    Fit one SARIMA model using pmdarima.auto_arima.
+    Used for model_type in {'single', 'level_shift'}.
+
+    d is fixed from config (EDA-validated; no unit-root test at fit time).
+    m=52 for all stores confirmed from EDA periodogram.
+    max_p, max_q, max_P, max_Q bounds from config.
+    information_criterion='bic' — penalises over-parameterisation at m=52.
+    stepwise=True — exhaustive search infeasible at m=52 parameter space.
     """
-    model = auto_arima(
-        y,
-        exogenous=exog,
+    cfg        = data['cfg']
+    train_y    = data['train_y']
+    train_exog = data['train_exog']
+
+    model = pm.auto_arima(
+        train_y,
+        exogenous=train_exog,
         d=cfg['d'],
-        D=0,                        # unconditional: D=1 at m=52 infeasible at n~143
+        D=cfg.get('D', 1),
         m=cfg['m'],
-        max_p=cfg['max_p'],
-        max_q=cfg['max_q'],
-        max_P=cfg['max_P'],
-        max_Q=cfg['max_Q'],
-        start_p=0, start_q=0,
-        start_P=0, start_Q=0,
-        information_criterion=ic,
+        max_p=cfg.get('max_p', 3),
+        max_q=cfg.get('max_q', 3),
+        max_P=cfg.get('max_P', 2),
+        max_Q=cfg.get('max_Q', 1),
         seasonal=True,
         stepwise=True,
+        information_criterion='bic',
         error_action='ignore',
         suppress_warnings=True,
-        out_of_sample_size=0,
+        with_intercept=cfg.get('with_intercept', True),
     )
-    print(f"  Store {store_id} [{label}] — "
-          f"order={model.order}  seasonal={model.seasonal_order}  "
-          f"AIC={model.aic():.2f}  BIC={model.bic():.2f}")
+
+    print(f"  Fitted SARIMA{model.order}x{model.seasonal_order}")
     return model
 
 
-# ── 4.1 Fit Single / Level-Shift ─────────────────────────────────────────────
+# ── Fit: two_model ────────────────────────────────────────────────────────────
 
-def fit_single(data: dict, ic: str = 'aic') -> object:
+def fit_two_model(data: dict) -> tuple:
     """
-    Used for model_type = 'single' and 'level_shift'.
+    Fit separate pre-break and post-break SARIMA models.
+    The post-break model is the production model used for inference.
+    The pre-break model is saved for audit only.
 
-    single stores: level_shift column in train_exog absorbs sub-threshold
-    CUSUM breaks without requiring a series split.
+    Series is split at break_idx; no level_shift column is included
+    in exog (the split itself handles the regime change).
 
-    level_shift stores (Store 18): same logic; level_shift column carries the
-    break signal. Store 18 was downgraded from two_model because post_n=62
-    equals the feasibility boundary m+10=62 (strict inequality failed).
-
-    d and m from config — EDA-corrected values. Do not override.
-    D=0 unconditional for all stores.
-    """
-    return _fit_arima(
-        data['train_y'],
-        data['train_exog'],
-        data['cfg'],
-        data['cfg']['model_type'],
-        data['store_id'],
-        ic=ic,
-    )
-
-
-# ── 4.2 Fit Two-Model ────────────────────────────────────────────────────────
-
-def fit_two_model(data: dict, ic: str = 'aic') -> tuple[object, object]:
-    """
-    Used for model_type = 'two_model'.
-    Stores: 13, 15, 19, 21, 32, 34, 39, 41 (break_idx=45, post_n=98).
-
-    Splits log_sales at break_idx. Fits independent SARIMAX on each segment.
-    Returns (pre_model, post_model).
-    Only post_model is used for forecasting — it reflects the current sales regime.
-    pre_model is saved to disk for audit only.
-
-    The level_shift column is NOT included in exog for two_model stores —
-    the series split itself handles the regime change. Including it would
-    introduce a constant=1 exog column across the entire post-break segment,
-    which is collinear with the intercept.
+    Returns:
+        (pre_model, post_model)
     """
     cfg       = data['cfg']
-    break_idx = data['break_idx']
     log_sales = data['log_sales']
     store_df  = data['store_df']
     scaler    = data['scaler']
     pca       = data['pca']
-    test_weeks = cfg['forecast_horizon']
+    break_idx = data['break_idx']
 
-    # Pre-break segment: weeks [0, break_idx)
-    pre_idx  = log_sales.index[:break_idx]
     pre_y    = log_sales.iloc[:break_idx]
-    pre_exog = build_exog_matrix(pre_idx, store_df, scaler, pca)
-    # No level_shift column for two_model
+    post_y   = log_sales.iloc[break_idx:]
+    pre_idx  = log_sales.index[:break_idx]
+    post_idx = log_sales.index[break_idx:]
 
-    # Post-break segment: weeks [break_idx, n)
-    post_full_idx  = log_sales.index[break_idx:]
-    post_y_full    = log_sales.iloc[break_idx:]
-    post_exog_full = build_exog_matrix(post_full_idx, store_df, scaler, pca)
+    pre_exog  = build_exog_matrix(pre_idx,  store_df, scaler, pca)
+    post_exog = build_exog_matrix(post_idx, store_df, scaler, pca)
 
-    # Training portion of post-break (hold out last test_weeks for evaluation)
-    post_train_y    = post_y_full.iloc[:-test_weeks]
-    post_train_exog = post_exog_full.iloc[:-test_weeks]
+    # Pre-break: audit only — no level_shift, no d override
+    pre_model = pm.auto_arima(
+        pre_y,
+        exogenous=pre_exog,
+        d=cfg['d'],
+        D=cfg.get('D', 1),
+        m=cfg['m'],
+        max_p=cfg.get('max_p', 3),
+        max_q=cfg.get('max_q', 3),
+        max_P=cfg.get('max_P', 2),
+        max_Q=cfg.get('max_Q', 1),
+        seasonal=True,
+        stepwise=True,
+        information_criterion='bic',
+        error_action='ignore',
+        suppress_warnings=True,
+        with_intercept=cfg.get('with_intercept', True),
+    )
+    print(f"  Pre-break  SARIMA{pre_model.order}x{pre_model.seasonal_order}")
 
-    pre_model  = _fit_arima(pre_y,  pre_exog,  cfg, 'pre-break',  data['store_id'], ic)
-    post_model = _fit_arima(post_train_y, post_train_exog, cfg, 'post-break', data['store_id'], ic)
+    # Post-break: test split carved from post_y (last forecast_horizon weeks)
+    horizon       = cfg['forecast_horizon']
+    train_post_y  = post_y.iloc[:-horizon]
+    train_post_ex = post_exog.iloc[:-horizon]
+
+    post_model = pm.auto_arima(
+        train_post_y,
+        exogenous=train_post_ex,
+        d=cfg['d'],
+        D=cfg.get('D', 1),
+        m=cfg['m'],
+        max_p=cfg.get('max_p', 3),
+        max_q=cfg.get('max_q', 3),
+        max_P=cfg.get('max_P', 2),
+        max_Q=cfg.get('max_Q', 1),
+        seasonal=True,
+        stepwise=True,
+        information_criterion='bic',
+        error_action='ignore',
+        suppress_warnings=True,
+        with_intercept=cfg.get('with_intercept', True),
+    )
+    print(f"  Post-break SARIMA{post_model.order}x{post_model.seasonal_order}")
 
     return pre_model, post_model
 
 
-# ── 4.3 Residual Diagnostics ─────────────────────────────────────────────────
+# ── Residual Diagnostics ──────────────────────────────────────────────────────
 
-def diagnose_residuals(model, store_id: int, label: str = '') -> dict:
+def diagnose_residuals(model, label: str = '') -> dict:
     """
-    Ljung-Box test (lag=10): H0 = residuals are white noise.
-        p > 0.05 → PASS — no remaining autocorrelation structure
-        p < 0.05 → FAIL — model has left extractable signal unfitted;
-                   increase max_p by 1 and refit (handled in train_sarima.py)
+    Ljung-Box (lags=10) and Shapiro-Wilk normality test on model residuals.
 
-    Shapiro-Wilk: H0 = residuals are normally distributed.
-        p < 0.05 → WARN — non-normal residuals; 95% CI bands are approximate.
-        Does not invalidate the model; SARIMA is robust to mild non-normality.
-        Log1p transform reduces but does not always eliminate non-normality.
+    lb_pass=True  : no residual autocorrelation at alpha=0.05 (all lags p > 0.05)
+    sw_pass=True  : residuals approximately normal at alpha=0.05
 
-    resid_mean should be ~0. Systematic bias indicates a missing trend term.
+    lb_pass is the remediation trigger in train_sarima.py.
+    sw_pass is informational — SARIMA is robust to mild non-normality.
+
+    label is an optional string for print output (e.g. 'post-break', '[remediated]').
+    No store id is printed.
     """
     resid  = model.resid()
-    lb_p   = float(acorr_ljungbox(resid, lags=[10], return_df=True)['lb_pvalue'].iloc[0])
-    sw_p   = float(shapiro(resid)[1])
-    passed = lb_p > 0.05
+    lb_res = acorr_ljungbox(resid, lags=10, return_df=True)
+    lb_p   = lb_res['lb_pvalue'].min()
+    lb_pass = bool(lb_p > 0.05)
 
-    tag = f'[{label}]' if label else ''
-    print(f"  Store {store_id} {tag} — "
-          f"Ljung-Box p={lb_p:.4f} {'PASS' if passed else 'FAIL'}  "
-          f"Shapiro p={sw_p:.4f}  "
-          f"resid_mean={resid.mean():.5f}  resid_std={resid.std():.5f}")
+    _, sw_p  = stats.shapiro(resid)
+    sw_pass  = bool(sw_p > 0.05)
 
-    if not passed:
-        print(f"    ACTION: increase max_p by 1 in config and refit.")
+    tag = f' {label}' if label else ''
+    print(f"  Diagnostics{tag}: LB_min_p={lb_p:.4f} ({'PASS' if lb_pass else 'FAIL'})  "
+          f"SW_p={sw_p:.4f} ({'PASS' if sw_pass else 'FAIL'})") 
 
     return {
-        'lb_p':       lb_p,
-        'sw_p':       sw_p,
-        'lb_pass':    passed,
-        'resid_mean': float(resid.mean()),
-        'resid_std':  float(resid.std()),
+        'lb_pass':  lb_pass,
+        'lb_min_p': round(float(lb_p), 4),
+        'sw_pass':  sw_pass,
+        'sw_p':     round(float(sw_p), 4),
     }
 
 
-# ── 4.4 Evaluate on Held-Out Test Set ────────────────────────────────────────
+# ── Evaluation ────────────────────────────────────────────────────────────────
 
 def evaluate(data: dict, model) -> dict:
     """
-    Computes all evaluation metrics on the original (expm1) scale.
-
-    For two_model stores: test split is within the post-break segment.
-    The test set covers the last 12 weeks of the post-break data.
-    test_exog is rebuilt without level_shift (consistent with fit_two_model).
+    Evaluate on held-out test set (last forecast_horizon weeks).
+    All metrics computed on original scale after inverse_log_transform.
 
     Metrics:
-        wMAPE  — primary; weights errors by actual magnitude; robust to high CV
-        SMAPE  — symmetric; bounded [0,2]; handles near-zero actuals
-        MAPE   — reference only; usable here because CV <= 0.30
-        MAE    — interpretable in original sales units ($)
-        RMSE   — penalizes large errors; more sensitive to outliers than MAE
-        DA     — Directional Accuracy; fraction of weeks where direction matches actual
+        wMAPE              — weighted MAPE; robust to near-zero denominators
+        SMAPE              — symmetric MAPE
+        DirectionalAccuracy — fraction of weeks where forecast direction matches actuals
+        RMSE               — on original scale
     """
-    cfg        = data['cfg']
-    test_weeks = cfg['forecast_horizon']
+    cfg      = data['cfg']
+    test_y   = data['test_y']
+    test_exog = data['test_exog']
 
     if cfg['model_type'] == 'two_model':
-        break_idx  = data['break_idx']
-        post_full  = data['log_sales'].iloc[break_idx:]
-        test_y_log = post_full.iloc[-test_weeks:]
-        test_exog  = build_exog_matrix(
-            test_y_log.index,
-            data['store_df'],
-            data['scaler'],
-            data['pca'],
-        )
-        # Reference point for directional accuracy: last post-break training week
-        y_prev = float(np.expm1(post_full.iloc[-(test_weeks + 1)]))
-    else:
-        test_y_log = data['test_y']
-        test_exog  = data['test_exog']
-        y_prev     = float(np.expm1(data['train_y'].iloc[-1]))
+        log_sales = data['log_sales']
+        break_idx = data['break_idx']
+        horizon   = cfg['forecast_horizon']
+        post_y    = log_sales.iloc[break_idx:]
+        test_y    = post_y.iloc[-horizon:]
+        store_df  = data['store_df']
+        scaler    = data['scaler']
+        pca       = data['pca']
+        test_exog = build_exog_matrix(test_y.index, store_df, scaler, pca)
 
-    pred_log, ci = model.predict(
-        n_periods=len(test_y_log),
-        exogenous=test_exog,
-        return_conf_int=True,
-        alpha=0.05,
-    )
+    log_pred = model.predict(n_periods=len(test_y), exogenous=test_exog)
+    pred     = inverse_log_transform(log_pred)
+    true     = inverse_log_transform(test_y.values)
 
-    y_true = np.expm1(test_y_log.values)
-    y_pred = np.expm1(pred_log)
-    eps    = 1e-8
+    wmape = float(np.sum(np.abs(true - pred)) / (np.sum(np.abs(true)) + 1e-8))
+    smape = float(np.mean(
+        2 * np.abs(pred - true) / (np.abs(pred) + np.abs(true) + 1e-8)
+    ))
+    rmse  = float(np.sqrt(np.mean((true - pred) ** 2)))
 
-    wmape = float(np.sum(np.abs(y_true - y_pred)) / (np.sum(np.abs(y_true)) + eps))
-    smape = float(np.mean(2 * np.abs(y_true - y_pred) / (np.abs(y_true) + np.abs(y_pred) + eps)))
-    mape  = float(np.mean(np.abs((y_true - y_pred) / (y_true + eps))))
-    mae   = float(np.mean(np.abs(y_true - y_pred)))
-    rmse  = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
-
-    actual_dir = np.sign(np.diff(np.concatenate([[y_prev], y_true])))
-    pred_dir   = np.sign(np.diff(np.concatenate([[y_prev], y_pred])))
-    da         = float(np.mean(actual_dir == pred_dir))
+    # Directional accuracy: compare direction of change vs previous period
+    true_diff = np.diff(true)
+    pred_diff = np.diff(pred)
+    dir_acc   = float(np.mean(np.sign(true_diff) == np.sign(pred_diff)))
 
     return {
         'wMAPE':               round(wmape, 4),
         'SMAPE':               round(smape, 4),
-        'MAPE':                round(mape,  4),
-        'MAE':                 round(mae,   2),
-        'RMSE':                round(rmse,  2),
-        'DirectionalAccuracy': round(da,    4),
+        'RMSE':                round(rmse, 2),
+        'DirectionalAccuracy': round(dir_acc, 4),
     }
 
 
-# ── 4.5 Seasonal Naive Benchmark ─────────────────────────────────────────────
+# ── Naive Benchmark ───────────────────────────────────────────────────────────
 
 def naive_benchmark(data: dict) -> np.ndarray:
     """
-    Seasonal naive: predict next N weeks = same N weeks from prior year (lag-52).
-    SARIMAX must beat this benchmark. If it does not, model adds no value above
-    a trivial baseline — apply Priority 2 (BIC) or Priority 4 (ensemble).
+    Seasonal naive benchmark: forecast = value at same week one year ago (lag-52).
+    Computed on original scale. Used to compute naive_wMAPE in train_sarima.py.
 
-    For two_model stores: use only the post-break raw series to avoid
-    the pre-break regime contaminating the benchmark.
-
-    Fallback to last-value naive if training segment < 52 weeks.
+    If the series is shorter than 52 + forecast_horizon, falls back to
+    last observed value (non-seasonal naive).
     """
-    cfg        = data['cfg']
-    test_weeks = cfg['forecast_horizon']
+    cfg      = data['cfg']
+    raw      = data['raw_sales']
+    horizon  = cfg['forecast_horizon']
+    n        = len(raw)
 
-    if cfg['model_type'] == 'two_model':
-        raw = data['raw_sales'].iloc[data['break_idx']:]
+    if n >= 52 + horizon:
+        naive = raw.iloc[-(52 + horizon):-52].values
     else:
-        raw = data['raw_sales']
+        naive = np.full(horizon, raw.iloc[-horizon - 1])
 
-    train_raw = raw.iloc[:-test_weeks]
-
-    if len(train_raw) >= 52:
-        return train_raw.iloc[-52: -52 + test_weeks].values
-    # Fallback: last known value repeated
-    return np.full(test_weeks, float(train_raw.iloc[-1]))
+    return naive
 
 
-# ── 4.6 Walk-Forward Cross-Validation ────────────────────────────────────────
+# ── Walk-Forward Cross-Validation ─────────────────────────────────────────────
 
-def walk_forward_cv(data: dict, model) -> dict:
+def walk_forward_cv(data: dict, model, max_splits: int = 4) -> dict:
     """
-    Manual expanding-window walk-forward CV with exogenous support.
+    Expanding-window cross-validation on the training set.
+    pmdarima.cross_val_score does not accept exogenous — manual loop used.
 
-    pmdarima's cross_val_score does not accept an 'exogenous' argument —
-    it is implemented here as a manual loop instead.
+    Each fold:
+        - Fit on train[:cutoff]
+        - Predict on train[cutoff:cutoff+horizon]
+        - Compute wMAPE on original scale
 
-    Strategy:
-        - Fit auto_arima on the initial window (80% of training segment)
-        - At each step, call model.update() to extend the window by `step` weeks
-        - Predict h=12 steps ahead using the corresponding exog slice
-        - Record MAE for each fold
-        - step=4 (monthly evaluation); h=12 (matches forecast horizon)
+    Returns mean and std of wMAPE across folds.
 
-    For two_model stores: CV on post-break training segment only.
+    n_splits is computed dynamically: largest k such that the initial
+    training window is at least one full seasonal cycle (m weeks), capped
+    at max_splits. This prevents the gate from silently skipping CV on
+    series that are long enough to fold but not long enough for 2*m.
+
+    Gate: min_train >= m  (one seasonal cycle is the minimum for SARIMA fit).
+    The old 2*m gate was overcautious and caused CV to skip on store 14.
     """
+    import math
     cfg        = data['cfg']
-    test_weeks = cfg['forecast_horizon']
-    h          = 12
-    step       = 4
+    train_y    = data['train_y']
+    train_exog = data['train_exog']
+    horizon    = cfg['forecast_horizon']
+    m          = cfg['m']
 
-    if cfg['model_type'] == 'two_model':
-        break_idx = data['break_idx']
-        post_full = data['log_sales'].iloc[break_idx:]
-        train_y   = post_full.iloc[:-test_weeks]
-        train_x   = build_exog_matrix(
-            train_y.index,
-            data['store_df'],
-            data['scaler'],
-            data['pca'],
-        )
-    else:
-        train_y = data['train_y']
-        train_x = data['train_exog']
+    n_train    = len(train_y)
+    # Maximum folds such that the first training window >= m
+    max_feasible = math.floor((n_train - m) / horizon)
+    n_splits     = min(max_splits, max_feasible)
 
-    n       = len(train_y)
-    initial = int(0.80 * n)
+    if n_splits < 1:
+        print(f"  CV skipped: insufficient history "
+              f"(n_train={n_train}, m={m}, horizon={horizon})")
+        return {'cv_wMAPE_mean': None, 'cv_wMAPE_std': None}
 
-    # Fit on initial window
-    cv_model = auto_arima(
-        train_y.iloc[:initial],
-        exogenous=train_x.iloc[:initial],
-        d=cfg['d'], D=0, m=cfg['m'],
-        max_p=cfg['max_p'], max_q=cfg['max_q'],
-        max_P=cfg['max_P'], max_Q=cfg['max_Q'],
-        seasonal=True, stepwise=True,
-        error_action='ignore', suppress_warnings=True,
-    )
+    min_train = n_train - n_splits * horizon
 
-    mae_scores = []
-    cursor     = initial
+    fold_wmapes = []
 
-    while cursor + h <= n:
-        # Predict h steps from current cursor using next h exog rows
-        fold_exog = train_x.iloc[cursor: cursor + h]
+    for i in range(n_splits):
+        cutoff       = min_train + i * horizon
+        fold_train_y = train_y.iloc[:cutoff]
+        fold_train_x = train_exog.iloc[:cutoff]
+        fold_test_y  = train_y.iloc[cutoff:cutoff + horizon]
+        fold_test_x  = train_exog.iloc[cutoff:cutoff + horizon]
+
+        if len(fold_test_y) == 0:
+            continue
+
         try:
-            pred_log = cv_model.predict(n_periods=h, exogenous=fold_exog)
-            actual   = train_y.iloc[cursor: cursor + h].values
-            # Metrics on log scale (MAE on log scale is consistent across folds)
-            mae = float(np.mean(np.abs(actual - pred_log)))
-            mae_scores.append(mae)
-        except Exception:
-            mae_scores.append(np.nan)
+            fold_model = pm.auto_arima(
+                fold_train_y,
+                exogenous=fold_train_x,
+                d=cfg['d'],
+                D=cfg.get('D', 1),
+                m=cfg['m'],
+                max_p=cfg.get('max_p', 3),
+                max_q=cfg.get('max_q', 3),
+                max_P=cfg.get('max_P', 2),
+                max_Q=cfg.get('max_Q', 1),
+                seasonal=True,
+                stepwise=True,
+                information_criterion='bic',
+                error_action='ignore',
+                suppress_warnings=True,
+                with_intercept=cfg.get('with_intercept', True),
+            )
+            log_pred = fold_model.predict(n_periods=len(fold_test_y),
+                                          exogenous=fold_test_x)
+            pred  = inverse_log_transform(log_pred)
+            true  = inverse_log_transform(fold_test_y.values)
+            wmape = float(np.sum(np.abs(true - pred)) / (np.sum(np.abs(true)) + 1e-8))
+            fold_wmapes.append(wmape)
+        except Exception as e:
+            print(f"  CV fold {i+1} failed: {e}")
 
-        # Extend model window by `step` weeks
-        update_y    = train_y.iloc[cursor: cursor + step]
-        update_exog = train_x.iloc[cursor: cursor + step]
-        try:
-            cv_model.update(update_y, exogenous=update_exog)
-        except Exception:
-            pass
+    if not fold_wmapes:
+        return {'cv_wMAPE_mean': None, 'cv_wMAPE_std': None}
 
-        cursor += step
+    mean_w = round(float(np.mean(fold_wmapes)), 4)
+    std_w  = round(float(np.std(fold_wmapes)),  4)
+    print(f"  CV wMAPE: {mean_w:.4f} ± {std_w:.4f} over {len(fold_wmapes)} folds")
 
-    valid   = [s for s in mae_scores if not np.isnan(s)]
-    cv_mean = float(np.mean(valid)) if valid else float('nan')
-    cv_std  = float(np.std(valid))  if valid else float('nan')
-
-    print(f"  Store {data['store_id']} CV — "
-          f"log-MAE {cv_mean:.4f} ± {cv_std:.4f}  ({len(valid)} folds)")
-
-    return {
-        'cv_mae_mean': round(cv_mean, 4),
-        'cv_mae_std':  round(cv_std,  4),
-        'n_folds':     int(len(valid)),
-    }
+    return {'cv_wMAPE_mean': mean_w, 'cv_wMAPE_std': std_w}
 
 
-# ── 4.7 Generate Production Forecast ─────────────────────────────────────────
+# ── Production Forecast ───────────────────────────────────────────────────────
 
 def generate_forecast(model, data: dict) -> dict:
     """
-    Refits the model on the full available series, then forecasts n_periods ahead.
+    Refit the model on the full series (train + test), then predict 12 weeks ahead.
+    copy.deepcopy applied before update() — model.update() mutates the cached object.
 
-    Refit scope by model_type:
-        single / level_shift : all 143 weeks
-        two_model            : post-break weeks only (break_idx : 143)
-                               Pre-break regime is not representative of current
-                               sales behaviour and must not contaminate the refit.
+    For two_model stores: refit on the full post-break series.
+    For single/level_shift: refit on the full log_sales series.
 
-    forecast_exog construction:
-        PC1_macro    — forward-fill last known macro row for all future weeks.
-                       Macro variables have low weekly volatility; 12-week ffill
-                       is defensible. Do not extrapolate or model macro separately.
-        Holiday_Flag — computed from `holidays` library on actual future dates.
-                       Do not shift existing Holiday_Flag values — that would
-                       assign last year's holiday pattern to future weeks.
-        level_shift  — 1.0 for all future weeks for single/level_shift stores
-                       (post-break regime is assumed to persist into forecast).
-                       Excluded for two_model stores (no dummy used).
-
-    Column order in forecast_exog must exactly match refit_exog.
-    Mismatch causes ValueError at model.predict() with no informative message.
+    Returns dict with keys:
+        dates        : list of pd.Timestamp (12 future Fridays)
+        forecast     : list[float] on original scale
+        lower_95     : list[float] on original scale
+        upper_95     : list[float] on original scale
+        is_holiday   : list[int] binary
     """
-    cfg        = data['cfg']
-    n_periods  = cfg['forecast_horizon']
-    model_type = cfg['model_type']
-    store_id   = data['store_id']
+    cfg      = data['cfg']
+    horizon  = cfg['forecast_horizon']
+    store_df = data['store_df']
+    scaler   = data['scaler']
+    pca      = data['pca']
+    break_idx = data['break_idx']
 
-    # ── Select refit series and exog ────────────────────────────────
-    if model_type == 'two_model':
-        refit_y    = data['log_sales'].iloc[data['break_idx']:]
-        refit_exog = build_exog_matrix(
-            refit_y.index,
-            data['store_df'],
-            data['scaler'],
-            data['pca'],
-        )
-        # No level_shift column for two_model
+    # Determine full series for refit
+    if cfg['model_type'] == 'two_model':
+        full_y = data['log_sales'].iloc[break_idx:]
     else:
-        refit_y     = data['log_sales']
-        refit_exog  = build_exog_matrix(
-            refit_y.index,
-            data['store_df'],
-            data['scaler'],
-            data['pca'],
-            level_shift_dummy=data['level_shift'],
+        full_y = data['log_sales']
+
+    # Rebuild full exog (no level_shift for two_model)
+    include_shift = cfg['model_type'] != 'two_model'
+    if include_shift:
+        level_shift = data['level_shift']
+        full_exog = build_exog_matrix(
+            full_y.index, store_df, scaler, pca,
+            level_shift_dummy=level_shift[:len(full_y)],
+            is_imputed=data['is_imputed'][:len(full_y)]
         )
+    else:
+        full_exog = build_exog_matrix(full_y.index, store_df, scaler, pca)
 
-    # ── Refit on full series ─────────────────────────────────────────
-    model.update(refit_y, exogenous=refit_exog)
+    # Refit on full series via update (deepcopy to avoid mutating cached model)
+    m = copy.deepcopy(model)
 
-    # ── Build future date index ──────────────────────────────────────
-    last_date  = refit_y.index[-1]
-    future_idx = pd.date_range(
-        last_date + pd.Timedelta(weeks=1),
-        periods=n_periods,
-        freq='W-FRI',
+    if cfg['model_type'] == 'two_model':
+        # For two_model the model was already fit on train_post; update with test_post
+        post_y    = data['log_sales'].iloc[break_idx:]
+        horizon_  = cfg['forecast_horizon']
+        test_post = post_y.iloc[-horizon_:]
+        test_post_ex = build_exog_matrix(test_post.index, store_df, scaler, pca)
+        m.update(test_post, exogenous=test_post_ex)
+    else:
+        test_y   = data['test_y']
+        test_ex  = data['test_exog']
+        m.update(test_y, exogenous=test_ex)
+
+    # Build future exog
+    last_date    = full_y.index[-1]
+    future_dates = pd.date_range(
+        start=last_date + pd.DateOffset(weeks=1),
+        periods=horizon,
+        freq='W-FRI'
     )
 
-    # ── Holiday flags for future weeks ───────────────────────────────
-    us_hols = hol_lib.US(
-        years=range(future_idx.min().year, future_idx.max().year + 1)
-    )
-    future_holiday = np.array([
-        int(any((d + pd.Timedelta(days=k)) in us_hols for k in range(7)))
-        for d in future_idx
-    ], dtype=float)
+    # Holiday lookup from store_df (last known year, same week-of-year pattern)
+    future_holiday = _build_future_holiday_flag(future_dates, store_df)
 
-    # ── PC1 for future weeks (forward-fill last known macro) ─────────
-    last_macro = (
-        data['store_df']
-        .set_index('Date')[MACRO_COLS]
-        .sort_index()
-        .iloc[-1:]
-    )
-    future_macro = pd.DataFrame(
-        np.tile(last_macro.values, (n_periods, 1)),
-        columns=MACRO_COLS,
-        index=future_idx,
-    )
-    future_pc1 = apply_pca(future_macro, data['scaler'], data['pca'])
+    # PC1 for future: repeat last observed macro values (no forward macro data)
+    future_store_df = _build_future_store_df(future_dates, store_df, future_holiday)
 
-    # ── Assemble forecast_exog (column order = refit_exog order) ────
-    forecast_exog = pd.DataFrame(
-        {'PC1_macro': future_pc1, 'Holiday_Flag': future_holiday},
-        index=future_idx,
-    )
-    if model_type != 'two_model' and data['break_idx'] is not None:
-        # Post-break regime continues into forecast window
-        forecast_exog['level_shift'] = 1.0
+    if include_shift:
+        future_shift = np.ones(horizon, dtype=float) if break_idx is not None else \
+                       np.zeros(horizon, dtype=float)
+        future_exog = build_exog_matrix(
+            future_dates, future_store_df, scaler, pca,
+            level_shift_dummy=future_shift
+        )
+    else:
+        future_exog = build_exog_matrix(future_dates, future_store_df, scaler, pca)
 
-    # ── Produce forecast ─────────────────────────────────────────────
-    forecast_log, ci = model.predict(
-        n_periods=n_periods,
-        exogenous=forecast_exog,
+    # Predict
+    log_pred, conf_int = m.predict(
+        n_periods=horizon,
+        exogenous=future_exog,
         return_conf_int=True,
-        alpha=0.05,
+        alpha=0.05
     )
 
-    print(f"  Store {store_id} forecast — "
-          f"weeks {future_idx[0].date()} → {future_idx[-1].date()}")
+    forecast  = inverse_log_transform(log_pred).tolist()
+    lower_95  = inverse_log_transform(conf_int[:, 0]).tolist()
+    upper_95  = inverse_log_transform(conf_int[:, 1]).tolist()
 
     return {
-        'dates':      future_idx,
-        'forecast':   np.expm1(forecast_log),
-        'lower_95':   np.expm1(ci[:, 0]),
-        'upper_95':   np.expm1(ci[:, 1]),
-        'is_holiday': future_holiday.astype(int),
+        'dates':      list(future_dates),
+        'forecast':   [round(v, 2) for v in forecast],
+        'lower_95':   [round(v, 2) for v in lower_95],
+        'upper_95':   [round(v, 2) for v in upper_95],
+        'is_holiday': future_holiday,
     }
+
+
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+def _build_future_holiday_flag(future_dates: pd.DatetimeIndex,
+                               store_df: pd.DataFrame) -> list[int]:
+    """
+    Assign holiday flags to future dates by matching week-of-year
+    from the most recent year in store_df.
+    Falls back to 0 if no matching week found.
+    """
+    df_indexed  = store_df.set_index('Date')
+    last_year   = df_indexed.index.year.max()
+    last_yr_df  = df_indexed[df_indexed.index.year == last_year]
+    week_holiday = {
+        d.isocalendar()[1]: int(v)
+        for d, v in zip(last_yr_df.index, last_yr_df['Holiday_Flag'])
+    }
+    return [week_holiday.get(d.isocalendar()[1], 0) for d in future_dates]
+
+
+def _build_future_store_df(future_dates: pd.DatetimeIndex,
+                            store_df: pd.DataFrame,
+                            future_holiday: list[int]) -> pd.DataFrame:
+    """
+    Build a synthetic store DataFrame for future weeks.
+    Macro columns filled with last observed values (no forward macro data available).
+    Store column is not used downstream — set to a dummy value.
+    """
+    last_row = store_df.sort_values('Date').iloc[-1]
+    rows = []
+    for date, hol in zip(future_dates, future_holiday):
+        row = {col: last_row[col] for col in MACRO_COLS}
+        row['Date']         = date
+        row['Holiday_Flag'] = hol
+        row['Store']        = 0          # dummy; not used downstream
+        row['Weekly_Sales'] = np.nan
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+# ── Artifact Loaders (used by main.py) ───────────────────────────────────────
+
+def load_model(model_type: str = 'single'):
+    """
+    Load the pre-trained production model artifact.
+    model_type is read from metrics.json by main.py — not from user input.
+
+    For two_model: loads model_post.pkl (production model).
+    For single/level_shift: loads model.pkl.
+    """
+    if model_type == 'two_model':
+        return joblib.load(_MODEL_POST_PATH)
+    return joblib.load(_MODEL_PATH)
+
+
+def load_pca_artifacts() -> tuple:
+    """Load train-fitted PCA scaler and PCA object for inference."""
+    scaler = joblib.load(_SCALER_PATH)
+    pca    = joblib.load(_PCA_PATH)
+    return scaler, pca

@@ -76,7 +76,6 @@ export default function App() {
         overstock_pct={props.overstock_pct}
         hasData={hasData}
         hasForecast={hasForecast}
-        storeId={props.store_id}
         statusMessage={statusMsg}
         error={props.error}
       />
@@ -99,7 +98,6 @@ export default function App() {
               forecast={props.forecast!}
               metrics={props.metrics}
               historical={props.historical}
-              storeId={props.store_id}
             />
           : <div className="empty-state">
               Generate a forecast to view results here.
@@ -108,13 +106,13 @@ export default function App() {
 
       {activeTab === 'Smart Alerts' && (
         hasForecast
-          ? <AlertsTab alerts={props.alerts} storeId={props.store_id} />
+          ? <AlertsTab alerts={props.alerts}/>
           : <div className="empty-state">Generate a forecast to view alerts.</div>
       )}
 
       {activeTab === 'Seasonal Analysis' && (
         props.seasonal && props.historical.length > 0
-          ? <SeasonalTab seasonal={props.seasonal} storeId={props.store_id} />
+          ? <SeasonalTab seasonal={props.seasonal}/>
           : <div className="empty-state">
               Upload data and generate a forecast to view seasonal analysis.
             </div>

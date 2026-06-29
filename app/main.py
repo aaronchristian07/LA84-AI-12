@@ -15,13 +15,8 @@ from statsmodels.tsa.seasonal import STL
 from utils.preprocessing import (
     parse_and_sort,
     preprocess_store,
-    build_exog_matrix,
-    fill_date_index,
-    winsorize_series,
-    log_transform,
-    make_level_shift_dummy
 )
-from utils.sarima_model import evaluate, fit_single, generate_forecast
+from utils.sarima_model import evaluate, generate_forecast
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -64,7 +59,6 @@ OUTPUTS_DIR  = 'app/outputs'
 CONFIG_PATH  = 'app/outputs/model_config.json'
 METRICS_PATH = 'app/outputs/metrics.json'
 
-KNOWN_STORE_IDS = {1, 7, 14}
 
 # ── Declare React component ───────────────────────────────────────────────────
 _FRONTEND_DIR = os.path.abspath(
@@ -75,10 +69,10 @@ _forecast_ui = components.declare_component('forecast_ui', path=_FRONTEND_DIR)
 # ── Cached loaders ────────────────────────────────────────────────────────────
 
 @st.cache_resource
-def load_known_store_artifacts(store_id: int) -> dict | None:
-    model_path  = os.path.join(MODELS_DIR,  f'store_{store_id}.pkl')
-    scaler_path = os.path.join(OUTPUTS_DIR, f'pca_scaler_{store_id}.pkl')
-    pca_path    = os.path.join(OUTPUTS_DIR, f'pca_model_{store_id}.pkl')
+def load_artifacts() -> dict | None:
+    model_path  = os.path.join(MODELS_DIR,  'model.pkl')
+    scaler_path = os.path.join(OUTPUTS_DIR, 'pca_scaler.pkl')
+    pca_path    = os.path.join(OUTPUTS_DIR, 'pca_model.pkl')
     for p in (model_path, scaler_path, pca_path):
         if not os.path.exists(p):
             return None
@@ -116,7 +110,7 @@ def list_data_files() -> list[str]:
 # ── Validation ────────────────────────────────────────────────────────────────
 
 def _validate_upload(df: pd.DataFrame) -> str | None:
-    required = {'Store', 'Date', 'Weekly_Sales', 'Holiday_Flag',
+    required = {'Date', 'Weekly_Sales', 'Holiday_Flag',
                 'Temperature', 'Fuel_Price', 'CPI', 'Unemployment'}
     missing = required - set(df.columns)
     if missing:
@@ -131,10 +125,8 @@ def _validate_upload(df: pd.DataFrame) -> str | None:
     if not df[~df['Holiday_Flag'].isin([0, 1])].empty:
         return "Holiday_Flag must contain only 0 or 1."
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
-    short = df.groupby('Store')['Date'].nunique()
-    short = short[short < 65]
-    if not short.empty:
-        return f"Stores {short.index.tolist()} have fewer than 65 weeks."
+    if df['Date'].nunique() < 65:
+        return "Dataset has fewer than 65 weeks of data."
     nulls = df[list(required)].isnull().sum()
     bad = nulls[nulls > 0]
     if not bad.empty:
@@ -142,68 +134,7 @@ def _validate_upload(df: pd.DataFrame) -> str | None:
     return None
 
 
-# ── Preprocessing helpers ─────────────────────────────────────────────────────
-
-def _infer_d(series: pd.Series) -> int:
-    log_s = np.log1p(series.values)
-    return 0 if np.var(log_s) < np.var(np.diff(log_s)) else 1
-
-
-def _build_unknown_cfg(store_id: int, store_series: pd.Series) -> dict:
-    return {
-        str(store_id): {
-            'd': _infer_d(store_series), 'D': 0, 'm': 52,
-            'max_p': 3, 'max_q': 2, 'max_P': 1, 'max_Q': 1,
-            'level_shift_idx': None, 'exog_path': 'pca',
-            'exclude': False, 'n_weeks': len(store_series),
-            'cv': float(store_series.std() / store_series.mean()),
-            'forecast_horizon': 12, 'model_type': 'single',
-        }
-    }
-
-
-def _build_data_dict_known(parsed, store_id, artifacts, global_config) -> dict:
-    scaler = artifacts['scaler']
-    pca    = artifacts['pca']
-    cfg    = global_config.get(str(store_id), {})
-    if not cfg:
-        raise ValueError(f"Store {store_id} not found in model_config.json")
-
-    store_df = parsed[parsed['Store'] == store_id].copy()
-    store_df['Date'] = pd.to_datetime(store_df['Date'], dayfirst=True)
-    raw = store_df.set_index('Date')['Weekly_Sales'].sort_index()
-
-    sales, is_imputed = fill_date_index(raw)
-    sales             = winsorize_series(sales, k=3.0)
-    log_sales         = log_transform(sales)
-
-    break_idx     = cfg.get('level_shift_idx')
-    level_shift   = make_level_shift_dummy(len(log_sales), break_idx)
-    test_weeks    = cfg['forecast_horizon']
-    train_idx     = log_sales.index[:-test_weeks]
-    test_idx      = log_sales.index[-test_weeks:]
-    include_shift = cfg['model_type'] != 'two_model'
-
-    train_exog = build_exog_matrix(
-        train_idx, store_df, scaler, pca,
-        level_shift_dummy=level_shift[:len(train_idx)] if include_shift else None,
-        is_imputed=is_imputed.values[:len(train_idx)],
-    )
-    test_exog = build_exog_matrix(
-        test_idx, store_df, scaler, pca,
-        level_shift_dummy=level_shift[len(train_idx):] if include_shift else None,
-        is_imputed=is_imputed.values[len(train_idx):],
-    )
-
-    return {
-        'store_id': store_id, 'cfg': cfg,
-        'log_sales': log_sales, 'raw_sales': sales, 'store_df': store_df,
-        'train_y': log_sales.iloc[:-test_weeks], 'test_y': log_sales.iloc[-test_weeks:],
-        'train_exog': train_exog, 'test_exog': test_exog,
-        'level_shift': level_shift, 'is_imputed': is_imputed.values,
-        'scaler': scaler, 'pca': pca, 'break_idx': break_idx,
-    }
-
+# ── Metrics helpers ──────────────────────────────────────────────────────────
 
 def _extract_metrics(eval_result, data, model) -> dict:
     wmape   = eval_result['wMAPE']
@@ -231,57 +162,43 @@ def _extract_metrics(eval_result, data, model) -> dict:
 # ── Forecast pipeline ─────────────────────────────────────────────────────────
 
 def _run_forecast(raw_df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    all_metrics = load_metrics()
-    all_config  = load_config()
-    parsed      = parse_and_sort(raw_df.copy())
-    store_id    = int(parsed['Store'].iloc[0])
+    stored_metrics = load_metrics()
+    all_config     = load_config()
+    parsed         = parse_and_sort(raw_df.copy())
 
-    if store_id in KNOWN_STORE_IDS:
-        artifacts = load_known_store_artifacts(store_id)
-        if artifacts is None:
-            raise FileNotFoundError(
-                f"Pre-trained artifacts missing for Store {store_id}."
-            )
-        data  = _build_data_dict_known(parsed, store_id, artifacts, all_config)
-        model = copy.deepcopy(artifacts['model'])
-        fc_dict = generate_forecast(model, data)
+    artifacts = load_artifacts()
+    if artifacts is None:
+        raise FileNotFoundError(
+            "Pre-trained artifacts missing. "
+            "Run train_sarima.py to generate models/model.pkl, "
+            "app/outputs/pca_scaler.pkl, and app/outputs/pca_model.pkl."
+        )
+    
+    data    = preprocess_store(parsed, all_config)
+    model   = copy.deepcopy(artifacts['model'])
+    fc_dict = generate_forecast(model, data)
 
-        store_json = all_metrics.get(str(store_id), {})
-        if store_json:
-            metrics = {
-                'wMAPE':               store_json.get('wMAPE', float('nan')),
-                'DirectionalAccuracy': store_json.get('DirectionalAccuracy', float('nan')),
-                'beats_naive':         store_json.get('beats_naive', False),
-                'model_type':          all_config.get(str(store_id), {}).get('model_type', 'single'),
-                'sarima_order':        str(store_json.get('sarima_order', 'N/A')),
-                'seasonal_order':      str(store_json.get('seasonal_order', 'N/A')),
-                'n_weeks':             all_config.get(str(store_id), {}).get('n_weeks', len(data['log_sales'])),
-                'MAPE':                store_json.get('MAPE', float('nan')),
-                'MAE':                 store_json.get('MAE', float('nan')),
-                'RMSE':                store_json.get('RMSE', float('nan')),
-                'SMAPE':               store_json.get('SMAPE', float('nan')),
-                'naive_wMAPE':         store_json.get('naive_wMAPE', float('nan')),
-                'cv_mae_mean':         store_json.get('cv_mae_mean', 'N/A'),
-                'cv_mae_std':          store_json.get('cv_mae_std', 'N/A'),
-                'lb_pass':             store_json.get('lb_pass', 'N/A'),
-            }
-        else:
-            eval_result = evaluate(data, copy.deepcopy(model))
-            metrics     = _extract_metrics(eval_result, data, model)
+    if stored_metrics:
+        metrics = {
+            'wMAPE':               stored_metrics.get('wMAPE', float('nan')),
+            'DirectionalAccuracy': stored_metrics.get('DirectionalAccuracy', float('nan')),
+            'beats_naive':         stored_metrics.get('beats_naive', False),
+            'model_type':          stored_metrics.get('model_type', 'single'),
+            'sarima_order':        str(stored_metrics.get('sarima_order', 'N/A')),
+            'seasonal_order':      str(stored_metrics.get('seasonal_order', 'N/A')),
+            'n_weeks':             stored_metrics.get('n_weeks', len(data['log_sales'])),
+            'MAPE':                stored_metrics.get('MAPE', float('nan')),
+            'MAE':                 stored_metrics.get('MAE', float('nan')),
+            'RMSE':                stored_metrics.get('RMSE', float('nan')),
+            'SMAPE':               stored_metrics.get('SMAPE', float('nan')),
+            'naive_wMAPE':         stored_metrics.get('naive_wMAPE', float('nan')),
+            'cv_mae_mean':         stored_metrics.get('cv_wMAPE_mean', 'N/A'),
+            'cv_mae_std':          stored_metrics.get('cv_wMAPE_std', 'N/A'),
+            'lb_pass':             stored_metrics.get('lb_pass', 'N/A'),
+        }
     else:
-        store_series = parsed[parsed['Store'] == store_id].set_index('Date')['Weekly_Sales'].sort_index()
-        user_cfg     = _build_unknown_cfg(store_id, store_series)
-        data         = preprocess_store(parsed, store_id, user_cfg)
-        model        = fit_single(data)
-        try:
-            eval_result = evaluate(data, copy.deepcopy(model))
-            metrics     = _extract_metrics(eval_result, data, model)
-        except Exception:
-            metrics = {k: float('nan') for k in ['wMAPE','DirectionalAccuracy','MAPE','MAE','RMSE','SMAPE','naive_wMAPE']}
-            metrics.update({'beats_naive': False, 'model_type': 'single', 'sarima_order': 'N/A',
-                            'seasonal_order': 'N/A', 'n_weeks': len(data['log_sales']),
-                            'cv_mae_mean': 'N/A', 'cv_mae_std': 'N/A', 'lb_pass': 'N/A'})
-        fc_dict = generate_forecast(model, data)
+        eval_result = evaluate(data, copy.deepcopy(model))
+        metrics     = _extract_metrics(eval_result, data, model)
 
     fc_df = pd.DataFrame({
         'Week':           fc_dict['dates'],
@@ -374,7 +291,6 @@ def _init():
     defaults = {
         'app_state':   'idle',   # idle | ready | forecasting | done | error
         'user_df':     None,
-        'store_id':    None,
         'forecast_df': None,
         'metrics':     None,
         'historical':  None,
@@ -422,7 +338,6 @@ def main():
 
     props = {
         'state':            ss['app_state'],
-        'store_id':         ss['store_id'],
         'data_files_count': len(list_data_files()),
         'forecast':         _forecast_rows(),
         'metrics':          _safe_metrics(ss['metrics']) if ss['metrics'] else None,
@@ -464,10 +379,8 @@ def main():
             else:
                 ss['user_df']   = raw
                 parsed          = parse_and_sort(raw.copy())
-                first_store     = int(parsed['Store'].iloc[0])
-                historical      = parsed[parsed['Store'] == first_store].copy()
+                historical      = parsed.copy()
                 ss['historical'] = historical
-                ss['store_id']  = first_store
                 ss['app_state'] = 'ready'
                 ss['error']     = None
                 ss['forecast_df'] = None
@@ -494,10 +407,8 @@ def main():
             else:
                 ss['user_df']   = raw
                 parsed          = parse_and_sort(raw.copy())
-                first_store     = int(parsed['Store'].iloc[0])
-                historical      = parsed[parsed['Store'] == first_store].copy()
+                historical      = parsed.copy()
                 ss['historical'] = historical
-                ss['store_id']  = first_store
                 ss['app_state'] = 'ready'
                 ss['error']     = None
                 ss['forecast_df'] = None
@@ -522,7 +433,6 @@ def main():
             ss[k] = None
         ss['alerts']    = []
         ss['app_state'] = 'idle'
-        ss['store_id']  = None
         ss['error']     = None
         st.rerun()
 
@@ -547,3 +457,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    

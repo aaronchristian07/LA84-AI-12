@@ -1,17 +1,19 @@
 """
-utils/preprocessing.py
-Walmart SARIMA — Preprocessing Pipeline
-
 Order of operations (strict — do not reorder):
     1. parse_and_sort
     2. fill_date_index       (defensive; gap_report confirmed zero gaps)
-    3. winsorize_series      (k=3.0 for all stores; CV <= 0.30 confirmed)
+    3. winsorize_series      (k=3.0; CV <= 0.30 confirmed)
     4. log_transform
     5. make_level_shift_dummy
     6. fit_pca               (train split only — no leakage)
     7. build_exog_matrix
     8. temporal_split
-    9. preprocess_store      (orchestrates 1–8 for one store)
+    9. preprocess_store      (orchestrates 1–8; always runs on store 14 config)
+
+Store ID is not exposed in any public interface.
+All artifact paths are suffix-free (pca_scaler.pkl, pca_model.pkl).
+model_config.json is still keyed by store id internally; the key '14' is
+read directly in preprocess_store — callers pass no store argument.
 """
 
 import numpy as np
@@ -20,22 +22,28 @@ import joblib
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
-MACRO_COLS = ['Temperature', 'Fuel_Price', 'CPI', 'Unemployment']
+MACRO_COLS   = ['Temperature', 'Fuel_Price', 'CPI', 'Unemployment']
+_STORE_ID    = 14          # single fixed store; never surfaced to callers
+_CONFIG_KEY  = str(_STORE_ID)
 
 
 # ── 1. Parse and Sort ────────────────────────────────────────────────────────
 
 def parse_and_sort(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Parse dates (Walmart format: DD-MM-YYYY) and sort by Store, Date.
+    Parse dates (Walmart format: DD-MM-YYYY) and sort by Date.
+    Store column is retained in the DataFrame but not used for filtering here.
+    Filtering to store 14 happens inside preprocess_store.
     Raises on any unparseable date — fix upstream, do not silently drop.
     """
     df = df.copy()
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
     n_nat = df['Date'].isna().sum()
     if n_nat > 0:
-        raise ValueError(f"{n_nat} unparseable dates in Date column. Fix before preprocessing.")
-    return df.sort_values(['Store', 'Date']).reset_index(drop=True)
+        raise ValueError(
+            f"{n_nat} unparseable dates in Date column. Fix before preprocessing."
+        )
+    return df.sort_values('Date').reset_index(drop=True)
 
 
 # ── 2. Complete Weekly Index ─────────────────────────────────────────────────
@@ -65,7 +73,7 @@ def fill_date_index(series: pd.Series) -> tuple[pd.Series, pd.Series]:
         n_remaining = s.isna().sum()
         raise ValueError(
             f"Unfillable gap: {n_remaining} weeks remain NaN after ffill+interpolate. "
-            f"Max consecutive gap exceeds 4 weeks. Mark this store as exclude=True in model_config.json."
+            f"Max consecutive gap exceeds 4 weeks."
         )
 
     return s, is_imputed.reindex(full_idx).fillna(0).astype(int)
@@ -76,13 +84,10 @@ def fill_date_index(series: pd.Series) -> tuple[pd.Series, pd.Series]:
 def winsorize_series(series: pd.Series, k: float = 3.0) -> pd.Series:
     """
     IQR-based capping at k=3.0.
-    k=3.0 confirmed: all 45 stores have CV <= 0.30. At low CV the IQR
-    fences are tight; k=2.0 clips legitimate holiday peaks.
     Floor at 1.0 applied simultaneously in single clip() to prevent
     log1p(0)=0 ambiguity.
-
     Never drop rows — dropping creates date index gaps that corrupt
-    ARIMA differencing (diff() produces NaN at gap positions).
+    ARIMA differencing.
     """
     Q1  = series.quantile(0.25)
     Q3  = series.quantile(0.75)
@@ -97,9 +102,9 @@ def winsorize_series(series: pd.Series, k: float = 3.0) -> pd.Series:
 def log_transform(series: pd.Series) -> pd.Series:
     """
     Apply log1p.
-    Justified by r(rolling_mean, rolling_std)=0.728 — multiplicative variance confirmed.
+    r(rolling_mean, rolling_std)=0.728 — multiplicative variance confirmed.
     Floor at 1.0 in winsorize_series guarantees log1p input >= 1.0.
-    Inverse: np.expm1(). All evaluation metrics computed on original scale after inverse.
+    Inverse: np.expm1(). All evaluation metrics computed on original scale.
     """
     return np.log1p(series)
 
@@ -115,12 +120,6 @@ def make_level_shift_dummy(n: int, break_idx: int | None) -> np.ndarray:
     """
     Binary array: 0 before break_idx, 1 from break_idx onward.
     break_idx=None returns all zeros — zero effect on model.
-
-    Usage by model_type:
-        single       : included as exog column; absorbs sub-threshold CUSUM break
-        level_shift  : included as exog column; absorbs break too severe for single
-                       but infeasible for two_model split (Store 18: post_n=62)
-        two_model    : NOT used; series is split at break_idx instead
     """
     dummy = np.zeros(n, dtype=float)
     if break_idx is not None and break_idx < n:
@@ -130,36 +129,32 @@ def make_level_shift_dummy(n: int, break_idx: int | None) -> np.ndarray:
 
 # ── 6. PCA Fit and Apply ─────────────────────────────────────────────────────
 
-def fit_pca(train_macro: pd.DataFrame, store_id: int) -> tuple:
+def fit_pca(train_macro: pd.DataFrame) -> tuple:
     """
     Fit StandardScaler and PCA(n_components=1) on training macro data only.
-    Saves fitted objects to outputs/ for use when building test/forecast exog.
+    Saves fitted objects to outputs/ without store-id suffix.
 
-    Fitting on test or future data is a leakage violation.
+    Artifact paths:
+        outputs/pca_scaler.pkl
+        outputs/pca_model.pkl
+
     PC1 explained 80.33% of macro variance on EDA run (>= 60% gate confirmed).
-
-    PC1 interpretation (from pca_loadings.csv):
-        High PC1 = high Fuel + high Temperature + low CPI + low Unemployment
-                 = economic expansion proxy
-
-    StandardScaler is required before PCA to prevent CPI (~210) from
-    dominating PC1 due to magnitude, not correlation structure.
-    StandardScaler is NOT applied to Holiday_Flag — binary regressors
-    do not benefit from scaling in MLE-based models.
+    StandardScaler required before PCA to prevent CPI (~210) from dominating
+    PC1 due to magnitude, not correlation structure.
     """
-    scaler = StandardScaler()
+    scaler   = StandardScaler()
     X_scaled = scaler.fit_transform(train_macro[MACRO_COLS].values)
 
     pca = PCA(n_components=1)
     pca.fit(X_scaled)
 
     ev = pca.explained_variance_ratio_[0] * 100
-    print(f"  Store {store_id} PCA — PC1 explains {ev:.2f}% of macro variance")
+    print(f"  PCA — PC1 explains {ev:.2f}% of macro variance")
     if ev < 60:
         print(f"  WARNING: PC1 < 60% ({ev:.2f}%). Consider holiday-only exog path.")
 
-    joblib.dump(scaler, f'app/outputs/pca_scaler_{store_id}.pkl')
-    joblib.dump(pca,    f'app/outputs/pca_model_{store_id}.pkl')
+    joblib.dump(scaler, 'outputs/pca_scaler.pkl')
+    joblib.dump(pca,    'outputs/pca_model.pkl')
 
     return scaler, pca
 
@@ -185,21 +180,14 @@ def build_exog_matrix(date_index: pd.DatetimeIndex,
     Build the exogenous regressor matrix for a given date range.
 
     Column order is fixed and must be identical across train, test,
-    and forecast matrices for the same store. Column mismatch causes
-    silent wrong predictions or ValueError at model.predict().
+    and forecast matrices. Column mismatch causes silent wrong predictions
+    or ValueError at model.predict().
 
     Fixed column order:
         1. PC1_macro     — PCA score on [Temperature, Fuel_Price, CPI, Unemployment]
         2. Holiday_Flag  — raw binary; VIF=1.25; no scaling applied
         3. level_shift   — included only if level_shift_dummy is not None
         4. is_imputed    — included only if imputed weeks exist (defensive)
-
-    Args:
-        date_index        : DatetimeIndex of weeks to build matrix for
-        store_df          : full raw store DataFrame (unfiltered)
-        scaler, pca       : train-fitted PCA objects
-        level_shift_dummy : precomputed binary array (from make_level_shift_dummy)
-        is_imputed        : binary array from fill_date_index
     """
     slice_df = (
         store_df
@@ -228,12 +216,7 @@ def temporal_split(series: pd.Series,
                    test_weeks: int = 12) -> tuple:
     """
     Temporal holdout split by position. Never shuffle.
-
-    Rules:
-        - PCA/scaler must be fitted on train before this call (fit_pca uses train_idx)
-        - test_exog is for held-out evaluation only
-        - forecast_exog (built from future dates) is a separate object — not test_exog
-        - test_weeks driven by config['forecast_horizon'] (12 for all stores)
+    PCA/scaler must be fitted on train before this call.
     """
     train_y    = series.iloc[:-test_weeks]
     test_y     = series.iloc[-test_weeks:]
@@ -242,23 +225,24 @@ def temporal_split(series: pd.Series,
     return train_y, test_y, train_exog, test_exog
 
 
-# ── 9. Full Preprocessing Per Store ─────────────────────────────────────────
+# ── 9. Full Preprocessing ────────────────────────────────────────────────────
 
-def preprocess_store(df: pd.DataFrame,
-                     store_id: int,
-                     config: dict) -> dict:
+def preprocess_store(df: pd.DataFrame, config: dict) -> dict:
     """
-    Orchestrates steps 1–8 for one store.
-    Returns a data dict consumed directly by train_sarima.py and sarima_model.py.
+    Orchestrates steps 1–8 for store 14.
+    Store ID is not a parameter — it is fixed internally as _STORE_ID=14.
+    config must be the full model_config.json dict (keyed by store id string).
+
+    Returns a data dict consumed by train_sarima.py and sarima_model.py.
+    The returned dict contains no 'store_id' key — callers must not depend on it.
 
     Note on level_shift for two_model stores:
-        make_level_shift_dummy is still called and the dummy is stored in the
+        make_level_shift_dummy is still called and the dummy stored in the
         returned dict, but build_exog_matrix for two_model stores is called
         WITHOUT passing the dummy (handled in fit_two_model and generate_forecast).
-        The dummy is retained in the dict for reference only.
     """
-    cfg      = config[str(store_id)]
-    store_df = df[df['Store'] == store_id].copy()
+    cfg      = config[_CONFIG_KEY]
+    store_df = df.copy()
     store_df['Date'] = pd.to_datetime(store_df['Date'], dayfirst=True)
     raw      = store_df.set_index('Date')['Weekly_Sales'].sort_index()
 
@@ -267,7 +251,7 @@ def preprocess_store(df: pd.DataFrame,
     sales             = winsorize_series(sales, k=3.0)
     log_sales         = log_transform(sales)
 
-    # Step 5 — dummy for all stores with a break index
+    # Step 5
     break_idx   = cfg.get('level_shift_idx')
     level_shift = make_level_shift_dummy(len(log_sales), break_idx)
 
@@ -275,13 +259,11 @@ def preprocess_store(df: pd.DataFrame,
     train_idx   = log_sales.index[:-test_weeks]
     test_idx    = log_sales.index[-test_weeks:]
 
-    # Step 6 — PCA fitted on train macro only (no leakage)
+    # Step 6 — PCA fitted on train macro only
     train_macro      = store_df.set_index('Date').reindex(train_idx)
-    scaler, pca      = fit_pca(train_macro, store_id)
+    scaler, pca      = fit_pca(train_macro)
 
-    # Step 7 — exog matrices
-    # single / level_shift: include level_shift column
-    # two_model: no level_shift column (series split handles regime change)
+    # Step 7
     include_shift = cfg['model_type'] != 'two_model'
 
     train_exog = build_exog_matrix(
@@ -296,7 +278,6 @@ def preprocess_store(df: pd.DataFrame,
     )
 
     return {
-        'store_id':    store_id,
         'cfg':         cfg,
         'log_sales':   log_sales,
         'raw_sales':   sales,

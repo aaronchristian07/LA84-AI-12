@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, Cell,
+  Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
 import type { SeasonalData, STLSeries } from '../types'
 
 interface Props {
   seasonal: SeasonalData
-  storeId:  number | null
 }
 
 type STLKey = 'observed' | 'trend' | 'seasonal' | 'residual'
@@ -62,8 +61,7 @@ const BarTooltip = ({ active, payload, label }: any) => {
   )
 }
 
-export default function SeasonalTab({ seasonal, storeId }: Props) {
-  const label = storeId != null ? `Store ${storeId}` : '—'
+export default function SeasonalTab({ seasonal  }: Props) {
   const [activeSTL, setActiveSTL] = useState<Set<STLKey>>(
     new Set(['observed', 'trend'])
   )
@@ -113,7 +111,7 @@ export default function SeasonalTab({ seasonal, storeId }: Props) {
   return (
     <div className="tab-content">
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>
-        {label} — Seasonal Demand Analysis
+        Seasonal Demand Analysis
       </h2>
 
       {/* STL decomposition */}

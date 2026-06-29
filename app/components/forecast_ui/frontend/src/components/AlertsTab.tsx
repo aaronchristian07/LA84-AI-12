@@ -2,14 +2,11 @@ import type { Alert } from '../types'
 
 interface Props {
   alerts:  Alert[]
-  storeId: number | null
 }
 
 const SEVERITY_ORDER: Record<string, number> = { HIGH: 0, MEDIUM: 1, INFO: 2 }
 
-export default function AlertsTab({ alerts, storeId }: Props) {
-  const label = storeId != null ? `Store ${storeId}` : '—'
-
+export default function AlertsTab({ alerts }: Props) {
   const sorted = [...alerts].sort(
     (a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9)
   )
@@ -24,7 +21,7 @@ export default function AlertsTab({ alerts, storeId }: Props) {
   return (
     <div className="tab-content">
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>
-        {label} — Smart Alert System
+        Smart Alert System
       </h2>
 
       {alerts.length === 0 ? (

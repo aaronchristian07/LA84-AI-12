@@ -6,20 +6,17 @@ interface Props {
   forecast:   ForecastRow[]
   metrics:    Metrics
   historical: HistoricalRow[]
-  storeId:    number | null
 }
 
 function fmtUSD(v: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v)
 }
 
-export default function ForecastTab({ forecast, metrics, historical, storeId }: Props) {
-  const label = storeId != null ? `Store ${storeId}` : '—'
-
+export default function ForecastTab({ forecast, metrics, historical }: Props) {
   return (
     <div className="tab-content">
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>
-        {label} — 12-Week Sales Forecast
+        12-Week Sales Forecast
       </h2>
 
       <KPICards metrics={metrics} />
