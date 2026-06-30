@@ -30,6 +30,28 @@ python -m pip install --upgrade pip
 pip install -r artifacts/requirements.txt
 ```
 
+
+## How to train the SARIMA model (train_sarima.py)
+*(Carry out step 2 **ONLY IF** this is the first time you're setting up this project)*
+1. **Activate the virtual environment**
+```bash
+.\venv\Scripts\activate
+```
+*(Haven't made the venv folder? Refer to Step 2 of the **eda_walmart.ipynb** setup. Then, return to Step 5 here)*
+
+2. **Upgrade pip and install the required dependencies**
+```bash
+python -m pip install --upgrade pip
+pip install -r app/requirements.txt
+```
+
+3. **Run the training file**
+```bash
+python app/train_sarima.py
+```
+
+
+
 ## How to run the Streamlit application (main.py)
 *(Carry out steps 1, 2, 3, and 5 **ONLY IF** this is the first time you're setting up this project)*
 1. **Install the required packages for the React components**
@@ -68,3 +90,5 @@ streamlit run app/main.py
 
 Dataset: 'Walmart Sales Prediction - (Best ML Algorithms)' (Walmart.csv)
 Link: https://www.kaggle.com/code/yasserh/walmart-sales-prediction-best-ml-algorithms/input
+
+GitHub Repository: https://github.com/aaronchristian07/LA84-AI-12

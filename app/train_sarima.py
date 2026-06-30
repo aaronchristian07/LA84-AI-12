@@ -44,13 +44,14 @@ for d in ['models', 'forecasts', 'outputs']:
     os.makedirs(d, exist_ok=True)
 
 # ── Load config ───────────────────────────────────────────────────────────────
-with open('outputs/model_config.json') as f:
+with open('app/outputs/model_config.json') as f:
     config = json.load(f)
 
 cfg = config['14']
 
 # ── Load and parse dataset ────────────────────────────────────────────────────
-df = parse_and_sort(pd.read_csv('data/Walmart.csv'))
+df_all = parse_and_sort(pd.read_csv('app/data/Walmart.csv'))
+df     = df_all[df_all['Store'] == 14].copy()
 
 print(f"{'=' * 60}")
 print(f"Training  |  model_type={cfg['model_type']}  d={cfg['d']}  m={cfg['m']}")
@@ -76,8 +77,8 @@ if cfg['model_type'] == 'two_model':
             print("  WARNING: residual autocorrelation persists after remediation. "
                   "Consider max_Q=1.")
 
-    joblib.dump(pre_model, 'models/model_pre.pkl')
-    joblib.dump(model,     'models/model_post.pkl')
+    joblib.dump(pre_model, 'app/models/model_pre.pkl')
+    joblib.dump(model,     'app/models/model_post.pkl')
 
 else:
     # single or level_shift
@@ -97,7 +98,7 @@ else:
             print("  WARNING: residual autocorrelation persists after remediation. "
                   "Consider max_Q=1.")
 
-    joblib.dump(model, 'models/model.pkl')
+    joblib.dump(model, 'app/models/model.pkl')
 
 # ── Evaluate on held-out test set ─────────────────────────────────────────────
 metrics    = evaluate(data, model)
@@ -146,7 +147,7 @@ all_metrics = {
     'm':              cfg['m'],
 }
 
-with open('outputs/metrics.json', 'w') as f:
+with open('app/outputs/metrics.json', 'w') as f:
     json.dump(all_metrics, f, indent=2)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
@@ -158,4 +159,4 @@ print(f"DirAcc:       {metrics['DirectionalAccuracy']:.4f}")
 print(f"Beats naive:  {metrics['beats_naive']}")
 print(f"LB pass:      {diag['lb_pass']}")
 print(f"Forecast:     forecasts/forecast_12w.csv")
-print(f"Metrics:      outputs/metrics.json")
+print(f"Metrics:      app/outputs/metrics.json")

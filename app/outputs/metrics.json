@@ -1,8 +1,10 @@
 {
   "wMAPE": 0.0398,
   "SMAPE": 0.0394,
-  "RMSE": 86745.45,
-  "DirectionalAccuracy": 0.7273,
+  "MAPE": 0.039,
+  "MAE": 65450.84,
+  "RMSE": 86743.1,
+  "DirectionalAccuracy": 0.75,
   "naive_wMAPE": 0.1989,
   "beats_naive": true,
   "cv_wMAPE_mean": 0.0752,

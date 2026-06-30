@@ -27,7 +27,6 @@ import pmdarima as pm
 from utils.preprocessing import (
     build_exog_matrix,
     inverse_log_transform,
-    make_level_shift_dummy,
     MACRO_COLS,
 )
 
@@ -466,18 +465,13 @@ def generate_forecast(model, data: dict) -> dict:
 
 def _build_future_holiday_flag(future_dates: pd.DatetimeIndex,
                                store_df: pd.DataFrame) -> list[int]:
-    """
-    Assign holiday flags to future dates by matching week-of-year
-    from the most recent year in store_df.
-    Falls back to 0 if no matching week found.
-    """
-    df_indexed  = store_df.set_index('Date')
-    last_year   = df_indexed.index.year.max()
-    last_yr_df  = df_indexed[df_indexed.index.year == last_year]
-    week_holiday = {
-        d.isocalendar()[1]: int(v)
-        for d, v in zip(last_yr_df.index, last_yr_df['Holiday_Flag'])
-    }
+    df_indexed = store_df.set_index('Date')
+ 
+    week_holiday: dict[int, int] = {}
+    for date, flag in zip(df_indexed.index, df_indexed['Holiday_Flag']):
+        week = date.isocalendar()[1]
+        week_holiday[week] = max(week_holiday.get(week, 0), int(flag))
+ 
     return [week_holiday.get(d.isocalendar()[1], 0) for d in future_dates]
 
 

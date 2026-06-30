@@ -25,16 +25,16 @@ st.set_page_config(
     layout="wide",
 )
 
-@st.cache_resource
-def run_npm_install():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    frontend_dir = os.path.join(current_dir, "components", "forecast_ui", "frontend")
+# @st.cache_resource
+# def run_npm_install():
+#     current_dir = os.path.dirname(os.path.abspath(__file__))
+#     frontend_dir = os.path.join(current_dir, "components", "forecast_ui", "frontend")
     
-    if os.path.exists(frontend_dir):
-        subprocess.run(["npm", "install"], cwd=frontend_dir, check=True)
-        subprocess.run(["npm", "run", "build"], cwd=frontend_dir, check=True)
+#     if os.path.exists(frontend_dir):
+#         subprocess.run(["npm", "install"], cwd=frontend_dir, check=True)
+#         subprocess.run(["npm", "run", "build"], cwd=frontend_dir, check=True)
 
-run_npm_install()
+# run_npm_install()
 
 
 # Hide all Streamlit chrome — React owns 100% of the visible UI
@@ -204,10 +204,8 @@ def _run_forecast(raw_df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     #     metrics     = _extract_metrics(eval_result, data, model)
 
     eval_result = evaluate(data, copy.deepcopy(model))
-    print("extracting metrics...")
     metrics     = _extract_metrics(eval_result, data, model)
 
-    print("fc_df")
     fc_df = pd.DataFrame({
         'Week':           fc_dict['dates'],
         'Forecast_Sales': fc_dict['forecast'],
@@ -215,7 +213,6 @@ def _run_forecast(raw_df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         'Upper_95':       fc_dict['upper_95'],
         'Is_Holiday':     fc_dict['is_holiday'],
     })
-    print("returning fc_df and metrics")
     return fc_df, metrics
 
 

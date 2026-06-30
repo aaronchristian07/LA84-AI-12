@@ -135,8 +135,8 @@ def fit_pca(train_macro: pd.DataFrame) -> tuple:
     Saves fitted objects to outputs/ without store-id suffix.
 
     Artifact paths:
-        outputs/pca_scaler.pkl
-        outputs/pca_model.pkl
+        app/outputs/pca_scaler.pkl
+        app/outputs/pca_model.pkl
 
     PC1 explained 80.33% of macro variance on EDA run (>= 60% gate confirmed).
     StandardScaler required before PCA to prevent CPI (~210) from dominating
@@ -153,8 +153,8 @@ def fit_pca(train_macro: pd.DataFrame) -> tuple:
     if ev < 60:
         print(f"  WARNING: PC1 < 60% ({ev:.2f}%). Consider holiday-only exog path.")
 
-    joblib.dump(scaler, 'outputs/pca_scaler.pkl')
-    joblib.dump(pca,    'outputs/pca_model.pkl')
+    joblib.dump(scaler, 'app/outputs/pca_scaler.pkl')
+    joblib.dump(pca,    'app/outputs/pca_model.pkl')
 
     return scaler, pca
 
